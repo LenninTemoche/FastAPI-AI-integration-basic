@@ -1,0 +1,4 @@
+# Configuración mínima de herramientas para localizar la aplicación.
+# Las dependencias del entorno se mantienen en requirements.txt en esta sección.
+[tool.fastapi]
+entrypoint = "app.main:app"
