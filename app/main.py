@@ -25,3 +25,42 @@ def read_root() -> dict[str, str]:
         "status": "ok",
         "version": app.version,
     }
+@app.get(
+    "/api/v1/products",
+    tags=["Productos"],
+    summary="Demostrar parámetros de consulta",
+    description=(
+        "Demuestra cómo se reciben parámetros query. No consulta todavía datos reales; "
+        "el listado funcional se implementará en la sección de CRUD."
+    ),
+)
+def list_products(limit: int = 10, include_desc: bool = False) -> dict[str, object]:
+    """Devuelve los valores recibidos por query para demostrar su conversión de tipos."""
+    return {
+        "message": (
+            "Parámetros de consulta recibidos. El listado real se implementará "
+            "en la sección de CRUD."
+        ),
+        "limit": limit,
+        "include_desc": include_desc,
+    }
+
+
+@app.get(
+    "/api/v1/products/{product_id}",
+    tags=["Productos"],
+    summary="Demostrar un parámetro de ruta",
+    description=(
+        "Demuestra cómo FastAPI obtiene y convierte el identificador desde la URL. "
+        "La consulta de un producto real se implementará en la sección de CRUD."
+    ),
+)
+def read_product(product_id: int) -> dict[str, object]:
+    """Devuelve el identificador recibido como parámetro de ruta."""
+    return {
+        "message": (
+            "Parámetro de ruta recibido. La consulta del producto real "
+            "se implementará en la sección de CRUD."
+        ),
+        "product_id": product_id,
+    }
