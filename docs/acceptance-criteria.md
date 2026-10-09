@@ -45,7 +45,7 @@ No se han dado por completados por generar los archivo, verificar localmente y l
 
 Confirmar C1–C8 en el entorno local. Los endpoints de productos solo reflejan los parámetros recibidos; no realizan operaciones contra datos reales. La validación de restricciones adicionales se abordará en la sección 4 y el CRUD en la sección 5.
 
-## D. Objetivo final — avnace docmuental
+## D. Objetivo final — avance documental
 
 - [ ] D1. Instalación reproducible y dependencias documentadas/bloqueadas.
 - [ ] D2. API versionada bajo `/api/v1`.
@@ -59,4 +59,3 @@ Confirmar C1–C8 en el entorno local. Los endpoints de productos solo reflejan 
 - [ ] D10. Guía de integración desde al menos un cliente externo.
 - [ ] D11. Limitaciones de persistencia, rendimiento y despliegue documentadas.
 - [ ] D12. Revisión específica de seguridad antes de considerar el despliegue en producción.
-
