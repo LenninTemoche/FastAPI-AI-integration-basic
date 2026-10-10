@@ -30,32 +30,49 @@ Este archivo diferencia los criterios de las secciones implementadas, empezando 
 
 ## C. Sección 3 — rutas y parámetros
 
-No se han dado por completados por generar los archivo, verificar localmente y luego marcar los criterios.
+Sección 3 completada y verificada localmente. Los endpoints de productos reflejan los parámetros recibidos; no realizan operaciones contra datos reales. La validación de restricciones adicionales se abordará en la sección 4 y el CRUD en la sección 5.
 
-- [ ] C1. `GET /` sigue respondiendo `200 OK`.
-- [ ] C2. `GET /api/v1/products/25` devuelve el entero `product_id: 25`.
-- [ ] C3. `GET /api/v1/products` aplica `limit=10` e `include_desc=false` cuando no se envían parámetros.
-- [ ] C4. `GET /api/v1/products?limit=5&include_desc=true` devuelve `limit=5` e `include_desc=true` con sus tipos correspondientes.
-- [ ] C5. Un `product_id` no entero produce `422`.
-- [ ] C6. Un `limit` no entero produce `422`.
-- [ ] C7. Swagger muestra los tres endpoints y documenta los parámetros.
-- [ ] C8. La guía `docs/path-and-query-parameters.md` se revisa y los cambios se incluyen en un commit manual.
+- [x] C1. `GET /` sigue respondiendo `200 OK`.
+- [x] C2. `GET /api/v1/products/25` devuelve el entero `product_id: 25`.
+- [x] C3. `GET /api/v1/products` aplica `limit=10` e `include_desc=false` por defecto.
+- [x] C4. `GET /api/v1/products?limit=5&include_desc=true` devuelve los valores tipados `5` y `true`.
+- [x] C5. Un `product_id` no entero produce `422`.
+- [x] C6. Un `limit` no entero produce `422`.
+- [x] C7. Swagger muestra los tres endpoints y documenta los parámetros.
+- [x] C8. La guía se revisó y se subió mediante commit manual.
 
-### Condición para cerrar la sección 3
+## D. Sección 4 — validación con Pydantic
 
-Confirmar C1–C8 en el entorno local. Los endpoints de productos solo reflejan los parámetros recibidos; no realizan operaciones contra datos reales. La validación de restricciones adicionales se abordará en la sección 4 y el CRUD en la sección 5.
+Pendiente de validación local. Marcar cada criterio después de probarlo en Swagger UI o mediante una petición HTTP real.
 
-## D. Objetivo final — avance documental
+- [ ] D1. La API sigue arrancando y `GET /` responde `200 OK`.
+- [ ] D2. `GET /api/v1/products/25` sigue devolviendo `product_id: 25`.
+- [ ] D3. `GET /api/v1/products?limit=0` y `limit=101` devuelven `422`.
+- [ ] D4. `GET /api/v1/products/0` devuelve `422`.
+- [ ] D5. El payload válido de `POST /api/v1/products/validate` devuelve `200` y `valid: true`.
+- [ ] D6. `name` con menos de 3 caracteres devuelve `422`.
+- [ ] D7. `price <= 0`, `stock < 0` y los tipos no válidos devuelven `422`.
+- [ ] D8. Un campo desconocido devuelve `422`.
+- [ ] D9. Una descripción de más de 500 caracteres devuelve `422`.
+- [ ] D10. Swagger muestra el esquema del body y las restricciones de campos.
+- [ ] D11. `docs/pydantic-validation.md` y este documento se revisan.
+- [ ] D12. Los cambios pasan `git diff --check`, se revisan y se incluyen en un commit manual.
 
-- [ ] D1. Instalación reproducible y dependencias documentadas/bloqueadas.
-- [ ] D2. API versionada bajo `/api/v1`.
-- [ ] D3. Contratos de entrada/salida con Pydantic y validaciones probadas.
-- [ ] D4. CRUD con manejo coherente de errores HTTP.
-- [ ] D5. Routers, servicios y repositorios separados.
-- [ ] D6. Pruebas automatizadas de rutas, servicios y errores relevantes.
-- [ ] D7. Llamadas externas con timeout y tratamiento de fallos.
-- [ ] D8. Secretos fuera del control de versiones y de los logs.
-- [ ] D9. Proveedor LLM intercambiable mediante un adaptador.
-- [ ] D10. Guía de integración desde al menos un cliente externo.
-- [ ] D11. Limitaciones de persistencia, rendimiento y despliegue documentadas.
-- [ ] D12. Revisión específica de seguridad antes de considerar el despliegue en producción.
+### Condición para cerrar la sección 4
+
+Confirmar D1–D12 en el entorno local. `POST /api/v1/products/validate` es solo una demostración temporal de validación; no crea ni persiste productos.
+
+## E. Objetivo final — avance documental
+
+- [ ] E1. Instalación reproducible y dependencias documentadas/bloqueadas.
+- [ ] E2. API versionada bajo `/api/v1`.
+- [ ] E3. Contratos de entrada/salida con Pydantic y validaciones probadas.
+- [ ] E4. CRUD con manejo coherente de errores HTTP.
+- [ ] E5. Routers, servicios y repositorios separados.
+- [ ] E6. Pruebas automatizadas de rutas, servicios y errores relevantes.
+- [ ] E7. Llamadas externas con timeout y tratamiento de fallos.
+- [ ] E8. Secretos fuera del control de versiones y de los logs.
+- [ ] E9. Proveedor LLM intercambiable mediante un adaptador.
+- [ ] E10. Guía de integración desde al menos un cliente externo.
+- [ ] E11. Limitaciones de persistencia, rendimiento y despliegue documentadas.
+- [ ] E12. Revisión específica de seguridad antes de considerar el despliegue en producción.
