@@ -1,6 +1,6 @@
 # Sección 4 — Validación de datos con Pydantic
 
-En esta sección se definen contratos de entrada y salida reutilizables con Pydantic. El endpoint didáctico `POST /api/v1/products/validate` valida un payload sin persistirlo; durante la sección 5 se añade la creación real mediante `POST /api/v1/products`, que reutiliza el mismo modelo `ProductCreate`. Mientras se cierra la sección 5, el endpoint de validación permanece disponible como herramienta didáctica de repaso.
+En esta sección se definen contratos de entrada y salida reutilizables con Pydantic. El endpoint didáctico `POST /api/v1/products/validate` se retiró deliberadamente al implementar el CRUD real en la sección 5; `ProductCreate` se conserva y se reutiliza en `POST /api/v1/products` y `PUT /api/v1/products/{product_id}`. Las pruebas que siguen apuntan al CRUD real.
 
 ## 1. Modelo `ProductCreate`
 
@@ -31,7 +31,7 @@ Ambas rutas validan el JSON en el backend. Los datos que incumplen las reglas de
 
 1. Inicia la API desde la raíz del repositorio con `fastapi dev`.
 2. Abre [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
-3. Abre `POST /api/v1/products/validate`, selecciona **Try it out**, introduce el payload válido y ejecuta la operación.
+3. Abre `POST /api/v1/products`, selecciona **Try it out**, introduce el payload válido y ejecuta la operación.
 4. Repite las pruebas inválidas que aparecen a continuación y confirma el código `422`.
 5. Prueba también `GET /api/v1/products` y `GET /api/v1/products/{product_id}` para verificar los límites incorporados a sus parámetros.
 
@@ -39,7 +39,7 @@ Ambas rutas validan el JSON en el backend. Los datos que incumplen las reglas de
 
 | Caso                         | Ejemplo                                                | Resultado esperado                           |
 | ---------------------------- | ------------------------------------------------------ | -------------------------------------------- |
-| Payload válido              | Nombre`Router Wi-Fi`, precio `129.9`, stock `15` | `200 OK`; respuesta con `valid: true`.   |
+| Payload válido              | Nombre`Router Wi-Fi`, precio `129.9`, stock `15` | `201 Created`; el producto se crea en memoria.   |
 | Nombre demasiado corto       | `name: "TV"`                                         | `422`; incumple `min_length=3`.          |
 | Precio igual a cero          | `price: 0`                                           | `422`; el precio debe ser mayor que cero.  |
 | Precio negativo              | `price: -2`                                          | `422`.                                     |
@@ -57,8 +57,8 @@ Las ubicaciones y los mensajes concretos dentro de `detail` pueden variar según
 - Se usa `BaseModel`, `ConfigDict` y `Field` de Pydantic.
 - El esquema de entrada se separa de `main.py` y queda en `app/schemas/product.py` para poder reutilizarlo desde endpoints y servicios futuros.
 - Se aprovecha la sección para añadir restricciones explícitas a los parámetros existentes: `product_id >= 1` y `1 <= limit <= 100`.
-- `POST /api/v1/products/validate` es temporal y didáctico; no es una operación CRUD ni persiste datos. Se documenta para evitar que un consumidor lo confunda con una creación.
-- No se incorporan base de datos, almacenamiento en memoria, `POST /api/v1/products` de creación real, actualizaciones ni eliminaciones. Eso corresponde a la sección 5.
+- `POST /api/v1/products/validate` se retiró al implementar el CRUD real en la sección 5; `ProductCreate` se reutiliza para la creación mediante `POST /api/v1/products`.
+- No se incorporan base de datos, persistencia duradera, actualizaciones ni eliminaciones. El almacenamiento en memoria y el CRUD corresponden a la sección 5; el manejo de errores HTTP se ampliará en la sección 6.
 - No se personaliza el manejo de `422` ni de otros errores HTTP; eso corresponde a la sección 6.
 - Los routers se mantienen en `app/main.py` temporalmente; la modularización corresponde a la sección 7.
 
@@ -68,7 +68,7 @@ Las ubicaciones y los mensajes concretos dentro de `detail` pueden variar según
 - [ ] Los endpoints de la sección 3 mantienen sus respuestas válidas.
 - [ ] `GET /api/v1/products?limit=0` y `limit=101` devuelven `422`.
 - [ ] `GET /api/v1/products/0` devuelve `422`.
-- [ ] El payload válido de `POST /api/v1/products/validate` devuelve `200` y una vista previa con los campos esperados.
+- [ ] El payload válido de `POST /api/v1/products` devuelve `201 Created` y un producto con ID asignado.
 - [ ] `name` con menos de 3 caracteres devuelve `422`.
 - [ ] `price <= 0`, `stock < 0`, tipos inválidos y campos extra devuelven `422`.
 - [ ] Swagger documenta el cuerpo de petición y los límites de los parámetros.

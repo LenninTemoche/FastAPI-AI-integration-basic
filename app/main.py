@@ -6,7 +6,8 @@ cuando se incorpore una base de datos y un repositorio apropiado.
 
 from typing import Annotated
 from fastapi import FastAPI, Path, Query, HTTPException, Response, status
-from app.schemas.product import ProductCreate, ProductValidationResult, ProductListResponse, ProductRead
+from app.schemas.product import ProductCreate, ProductListResponse, ProductRead
+from app.schemas.errors import ErrorResponse
 
 app = FastAPI(
     title="FastAPI AI Integration Basic",
@@ -22,10 +23,17 @@ _products: dict[int, ProductRead] = {}
 _next_product_id = 1
 
 
+# Mantiene el contrato de los errores 404 visible en Swagger/OpenAPI.
+# La respuesta de ejecución sigue usando el manejador HTTPException estándar.
+PRODUCT_NOT_FOUND_RESPONSE = {
+    status.HTTP_404_NOT_FOUND: {
+        "model": ErrorResponse,
+        "description": "El producto solicitado no existe.",
+    }
+}
+
 def _get_product_or_404(product_id: int) -> ProductRead:
     """Obtiene un producto o lanza un 404 si el ID no existe.
-
-    En la sección 6 se ampliará el tratamiento de errores HTTP.
     """
     product = _products.get(product_id)
     if product is None:
@@ -123,6 +131,7 @@ def list_products(
     tags=["Productos"],
     summary="Consultar un producto",
     description="Devuelve el producto identificado por su ID o un 404 si no existe.",
+    responses=PRODUCT_NOT_FOUND_RESPONSE,
 )
 
 def read_product(
@@ -144,6 +153,7 @@ def read_product(
         "Reemplaza los campos editables del producto. Debe enviarse un ProductCreate "
         "completo; si se omite description, vuelve a null. Devuelve 404 si no existe."
     ),
+    responses=PRODUCT_NOT_FOUND_RESPONSE,
 )
 
 def update_product(
@@ -171,6 +181,7 @@ def update_product(
         "Elimina el producto indicado. Devuelve 204 sin cuerpo si se eliminó, "
         "o 404 si no existe."
     ),
+    responses=PRODUCT_NOT_FOUND_RESPONSE,
 )
 
 def delete_product(
@@ -183,28 +194,3 @@ def delete_product(
     _get_product_or_404(product_id)
     del _products[product_id]
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@app.post(
-    "/api/v1/products/validate",
-    response_model=ProductValidationResult,
-    tags=["Validación"],
-    summary="Validar los datos de un producto",
-    description=(
-        "Endpoint didáctico para demostrar la validación del cuerpo JSON con Pydantic. "
-        "No crea ni persiste productos. En la sección de CRUD se implementará "
-        "POST /api/v1/products para crear recursos reales."
-    ),
-)
-def validate_product_payload(product: ProductCreate) -> ProductValidationResult:
-    """Valida y devuelve una vista previa del payload, sin guardar datos."""
-    return ProductValidationResult(
-        valid=True,
-        message=(
-            "El payload cumple las reglas de validación. No se ha creado "
-            "ni almacenado un producto."
-        ),
-        product=product,
-    )
-
-

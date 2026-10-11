@@ -47,3 +47,15 @@ Estas reglas se aplican a los agentes de IDE y asistentes de código que trabaje
 - Usa español para la documentación del proyecto, salvo nombres técnicos o convenciones estándar.
 - Respeta los nombres y contratos existentes; propone cambios incompatibles antes de aplicarlos.
 - Al terminar, presenta el resumen de archivos modificados, validaciones ejecutadas, riesgos y el mensaje de commit sugerido. La persona responsable realizará el commit y el push manualmente.
+
+## Patrón de verificación de sección (reutilizable para skill)
+
+Cuando se agrega o modifica una sección, repetir este checklist — casi siempre los mismos pasos:
+
+1. **Arranque sin errores.** `python -c "from app.main import app"` debe importarse sin `NameError`. La causa más frecuente es un símbolo usado pero **no importado** (p. ej. `ErrorResponse`).
+2. **Imports vs usos.** Revisar que todo lo referenciado en rutas/excepciones exista e importe. Si se retira un endpoint, borrar también la función huérfana y el import no usado.
+3. **Consistencia código ↔ docs.** Cada endpoint nuevo aparece en `README.md` (tabla + lista de docs); cada endpoint retirado desaparece de docs, criterios y README. `acceptance-criteria.md` lo indica explícitamente (ej. "se retiró deliberadamente").
+4. **OpenAPI refleja contratos.** Los `responses={404: {"model": ErrorResponse}}` aparecen en `/openapi.json` con `$ref` a `#/components/schemas/ErrorResponse`; `ErrorResponse` está en `components/schemas`.
+5. **Pruebas in-process.** `tests/test_product_api.py` cubre CRUD, validación (`422`), `404`, `204`, el endpoint retirado (`405`) y el contrato OpenAPI. Usa `TestClient` (httpx incluido); no depende de servidor vivo ni de dependencias nuevas.
+6. **`git diff --check`.** Sin trailing whitespace. (Los avisos `LF/CRLF` en Windows son benignos.)
+7. **Localhost no responde.** Si el proceso parece arrancado pero `curl`/`urllib` hace *timeout*, hay un proceso zombie (`netstat -ano | findstr :<port>`) ocupando `127.0.0.1:<port>`; matar el PID huérfano y relanzar sin `--reload`.

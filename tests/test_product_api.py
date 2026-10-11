@@ -126,16 +126,43 @@ def test_delete_product() -> None:
     assert r.status_code == 404
 
 
-def test_validate_endpoint() -> None:
+def test_validate_endpoint_removed() -> None:
+    """El endpoint didáctico /validate se retiró al implementar el CRUD."""
     client = _client()
     r = client.post(
         "/api/v1/products/validate",
         json={"name": "Router Wi-Fi", "price": 129.90, "stock": 15},
     )
-    assert r.status_code == 200
+    assert r.status_code in (404, 405)
+
+
+def test_404_detail_format() -> None:
+    """Un 404 de producto inexistente devuelve {detail} sin datos internos."""
+    client = _client()
+    r = client.get("/api/v1/products/999999")
+    assert r.status_code == 404
     body = r.json()
-    assert body["valid"] is True
-    assert body["product"]["name"] == "Router Wi-Fi"
+    assert "detail" in body
+    assert isinstance(body["detail"], str) and body["detail"]
+    assert "999999" in body["detail"]
+
+
+def test_404_documented_as_error_response() -> None:
+    """OpenAPI documenta ErrorResponse para el 404 de GET/PUT/DELETE por ID."""
+    client = _client()
+    spec = client.get("/openapi.json").json()
+    path = spec["paths"]["/api/v1/products/{product_id}"]
+    for method in ("get", "put", "delete"):
+        responses = path[method]["responses"]
+        assert "404" in responses
+        schema = (
+            responses["404"]
+            .get("content", {})
+            .get("application/json", {})
+            .get("schema", {})
+        )
+        assert schema.get("$ref") == "#/components/schemas/ErrorResponse"
+    assert "ErrorResponse" in spec["components"]["schemas"]
 
 
 def _run_all() -> int:

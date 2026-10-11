@@ -97,6 +97,10 @@ Usa el ID devuelto por el `POST` anterior (no supongas que siempre será 1 si ya
 
 `DELETE /api/v1/products/1` devuelve `204 No Content` sin cuerpo. Una consulta posterior al mismo ID devuelve `404`.
 
+### Manejo de errores HTTP
+
+Las operaciones GET, PUT y DELETE por ID devuelven `404 Not Found` cuando el producto no existe. La explicación del contrato de error y las pruebas ampliadas se documentan en [`http-errors.md`](http-errors.md). Los datos inválidos siguen devolviendo `422 Unprocessable Entity`
+
 ## 6. Validación manual en Swagger UI
 
 1. Inicia la API desde la raíz del repositorio: `fastapi dev`.

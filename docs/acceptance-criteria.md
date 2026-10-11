@@ -1,6 +1,6 @@
 # Criterios de aceptación
 
-Los criterios de las secciones 1–4 se conservan como hitos históricos cerrados según el seguimiento del usuario. Las rutas y los contratos evolucionan en las siguientes secciones: por ejemplo, el endpoint didáctico de validación de la sección 4 se sustituye por el CRUD real en la sección 5. Las casillas de la sección activa solo deben marcarse tras validar localmente.
+Los criterios de las secciones 1–4 se conservan como hitos históricos cerrados según seguimiento del desarrollo del proyecto. Las rutas y los contratos evolucionan en las siguientes secciones: por ejemplo, el endpoint didáctico de validación de la sección 4 se sustituye por el CRUD real en la sección 5. Las casillas de la sección activa solo deben marcarse tras validar localmente.
 
 ## A. Sección 1 — alcance y arquitectura
 
@@ -43,7 +43,7 @@ Sección 3 completada y verificada localmente. Las respuestas didácticas se sus
 
 ## D. Sección 4 — validación con Pydantic
 
-Pendiente de validación local. Marcar cada criterio después de probarlo en Swagger UI o mediante una petición HTTP real.
+Hito cerrado según el flujo de trabajo del proyecto. El endpoint demostrativo `POST /api/v1/products/validate` se retiró deliberadamente en la sección 5; `ProductCreate` se conserva y se aplica al CRUD.
 
 - [X] D1. La API sigue arrancando y `GET /` responde `200 OK`.
 - [X] D2. `GET /api/v1/products/25` sigue devolviendo `product_id: 25`.
@@ -57,8 +57,6 @@ Pendiente de validación local. Marcar cada criterio después de probarlo en Swa
 - [X] D10. Swagger muestra el esquema del body y las restricciones de campos.
 - [X] D11. `docs/pydantic-validation.md` y este documento se revisan.
 - [X] D12. Los cambios pasan `git diff --check`, se revisan y se incluyen en un commit manual.
-
-
 
 ## E. Sección 5 — CRUD de productos (sección activa)
 
@@ -77,20 +75,32 @@ Pendiente de validación local. Marcar cada criterio después de probarlo en Swa
 
 ### Condición para cerrar la sección 5
 
-Confirmar E1–E12 en el equipo local. No afirmar que el CRUD tiene persistencia durable: el almacenamiento en memoria es deliberadamente temporal. Los casos `404` son el comportamiento mínimo para recursos inexistentes; el tratamiento más amplio de errores corresponde a la sección 6.
+Confirmar E1–E12 en el equipo local. No afirmar que el CRUD tiene persistencia durable: el almacenamiento en memoria es deliberadamente temporal. La sección 6 documenta el contrato de errores `404` y cómo se publica en OpenAPI; sus pruebas locales se registran por separado a continuación.
 
 
-## E. Objetivo final — avance documental
+## F. Sección 6 — manejo de errores HTTP (sección activa)
 
-- [ ] E1. Instalación reproducible y dependencias documentadas/bloqueadas.
-- [ ] E2. API versionada bajo `/api/v1`.
-- [ ] E3. Contratos de entrada/salida con Pydantic y validaciones probadas.
-- [ ] E4. CRUD funcional con manejo coherente de errores HTTP.
-- [ ] E5. Routers, servicios y repositorios separados.
-- [ ] E6. Pruebas automatizadas de rutas, servicios y errores relevantes.
-- [ ] E7. Llamadas externas con timeout y tratamiento de fallos.
-- [ ] E8. Secretos fuera del control de versiones y de los logs.
-- [ ] E9. Proveedor LLM intercambiable mediante un adaptador.
-- [ ] E10. Guía de integración desde al menos un cliente externo.
-- [ ] E11. Limitaciones de persistencia, rendimiento y despliegue documentadas.
-- [ ] E12. Revisión específica de seguridad antes de considerar el despliegue en producción.
+- [ ] F1. GET, PUT y DELETE por ID devuelven `404` para productos inexistentes.
+- [ ] F2. La respuesta `404` usa el formato `{"detail": "..."}`.
+- [ ] F3. GET, PUT y DELETE por ID documentan `ErrorResponse` para `404` en OpenAPI.
+- [ ] F4. La entrada inválida en path o body mantiene la respuesta `422` de FastAPI.
+- [ ] F5. Las operaciones correctas del CRUD conservan sus códigos de éxito (`201`, `200` y `204`).
+- [ ] F6. Los mensajes de error no revelan secretos, trazas ni detalles internos.
+- [ ] F7. `docs/http-errors.md`, `docs/crud.md` y README están actualizados.
+- [ ] F8. `git diff --check` pasa, los cambios se revisan y se realiza el commit/push manual.
+
+
+## G. Objetivo final — avance documental
+
+- [ ] G1. Instalación reproducible y dependencias documentadas/bloqueadas.
+- [ ] G2. API versionada bajo `/api/v1`.
+- [ ] G3. Contratos de entrada/salida con Pydantic y validaciones probadas.
+- [ ] G4. CRUD funcional con manejo coherente de errores HTTP.
+- [ ] G5. Routers, servicios y repositorios separados.
+- [ ] G6. Pruebas automatizadas de rutas, servicios y errores relevantes.
+- [ ] G7. Llamadas externas con timeout y tratamiento de fallos.
+- [ ] G8. Secretos fuera del control de versiones y de los logs.
+- [ ] G9. Proveedor LLM intercambiable mediante un adaptador.
+- [ ] G10. Guía de integración desde al menos un cliente externo.
+- [ ] G11. Limitaciones de persistencia, rendimiento y despliegue documentadas.
+- [ ] G12. Revisión específica de seguridad antes de considerar el despliegue en producción.
