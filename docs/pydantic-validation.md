@@ -1,6 +1,6 @@
 # Sección 4 — Validación de datos con Pydantic
 
-En esta sección se definen contratos de entrada y salida reutilizables con Pydantic. FastAPI utiliza estos modelos para validar el cuerpo JSON, generar el esquema OpenAPI y devolver automáticamente `422 Unprocessable Entity` cuando los datos no cumplen las restricciones declaradas.
+En esta sección se definen contratos de entrada y salida reutilizables con Pydantic. El endpoint didáctico `POST /api/v1/products/validate` valida un payload sin persistirlo; durante la sección 5 se añade la creación real mediante `POST /api/v1/products`, que reutiliza el mismo modelo `ProductCreate`. Mientras se cierra la sección 5, el endpoint de validación permanece disponible como herramienta didáctica de repaso.
 
 ## 1. Modelo `ProductCreate`
 
@@ -17,39 +17,15 @@ El modelo declara `extra="forbid"`, por lo que los campos no definidos también 
 
 Las anotaciones de tipo y `Field` describen los límites. La API no debe confiar en que un cliente web, aplicación móvil u otro servicio valide por su cuenta: el backend valida de nuevo cada entrada.
 
-## 2. Endpoint didáctico de validación
+### ¿Cómo se aplica?
 
-`POST /api/v1/products/validate`
+`ProductCreate` se usa en:
 
-Esta ruta permite probar el modelo en Swagger sin adelantarnos al CRUD. Recibe el objeto, lo valida y devuelve una vista previa. **No crea, no identifica y no guarda un producto.** En la sección 5 se añadirá `POST /api/v1/products` para implementar la creación real, reutilizando `ProductCreate` y definiendo un esquema de salida apropiado para el recurso persistido.
+- `POST /api/v1/products`, para crear un producto.
+- `PUT /api/v1/products/{product_id}`, para reemplazar los campos editables de un producto existente.
 
-Payload válido de ejemplo:
+Ambas rutas validan el JSON en el backend. Los datos que incumplen las reglas devuelven el `422 Unprocessable Entity` predeterminado de FastAPI. La descripción detallada del CRUD y sus pruebas manuales están en [`crud.md`](crud.md).
 
-```json
-{
-  "name": "Router Wi-Fi",
-  "price": 129.9,
-  "stock": 15,
-  "description": "Router de doble banda"
-}
-```
-
-Respuesta esperada (`200 OK`):
-
-```json
-{
-  "valid": true,
-  "message": "El payload cumple las reglas de validación. No se ha creado ni almacenado un producto.",
-  "product": {
-    "name": "Router Wi-Fi",
-    "price": 129.9,
-    "stock": 15,
-    "description": "Router de doble banda"
-  }
-}
-```
-
-Si se omite `description`, el modelo permite el valor por defecto `null`.
 
 ## 3. Pruebas en Swagger UI
 

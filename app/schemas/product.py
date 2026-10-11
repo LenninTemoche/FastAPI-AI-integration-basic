@@ -1,13 +1,12 @@
-"""Esquemas Pydantic relacionados con productos.
-
+"""Esquemas Pydantic de entrada y salida para el recurso Product.
 ProductCreate se reutilizará cuando se implemente el CRUD en la sección 5.
 """
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class ProductCreate(BaseModel):
-    """Payload de entrada para un producto nuevo, validado pero aún no persistido."""
+class ProductBase(BaseModel):
+    """Campos compartidos por los modelos de creación y lectura."""
 
     model_config = ConfigDict(
         extra="forbid",
@@ -37,6 +36,30 @@ class ProductCreate(BaseModel):
         description="Descripción opcional de hasta 500 caracteres.",
         examples=["Router de doble banda"],
     )
+
+class ProductCreate(ProductBase):
+    """Cuerpo de entrada para crear o reemplazar los campos de un producto."""
+
+
+class ProductRead(ProductBase):
+    """Representación pública de un producto, incluyendo su identificador."""
+
+    id: int = Field(
+        gt=0,
+        description="Identificador asignado por la API al crear el producto.",
+        examples=[1],
+    )
+
+
+class ProductListResponse(BaseModel):
+    """Respuesta paginada del listado de productos."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    total: int = Field(ge=0, description="Cantidad total de productos disponibles.")
+    skip: int = Field(ge=0, description="Cantidad de elementos omitidos.")
+    limit: int = Field(ge=1, le=100, description="Máximo de elementos solicitado.")
+    items: list[ProductRead] = Field(description="Productos de la página actual.")
 
 
 class ProductValidationResult(BaseModel):
