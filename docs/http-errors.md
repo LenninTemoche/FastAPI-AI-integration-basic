@@ -1,37 +1,42 @@
 # Sección 6 — Manejo de errores HTTP
 
-**Referencia del video:** 34:24–36:18.
+**Objetivo del proyecto:** una API reutilizable mediante HTTP/JSON que mantenga separadas la capa HTTP, la lógica de aplicación, la persistencia y las integraciones externas.
 
-**Objetivo:** que los clientes de la API reciban códigos HTTP apropiados y respuestas de error documentadas y previsibles.
+Esta entrega mantiene las rutas en `app/main.py` para respetar la secuencia didáctica. Como mejora de arquitectura, introduce una excepción de dominio, un manejador HTTP, un servicio de productos y un contrato de repositorio. La modularización de rutas con `APIRouter` sigue reservada para la sección 7.
 
-Esta sección conserva el CRUD en memoria de la sección 5. No introduce routers, persistencia, autenticación ni proveedores de IA.
+## 1. Qué se separó en esta sección
 
-## 1. Principio de diseño
+| Capa | Archivo | Responsabilidad | Dependencia que debe evitar |
+|---|---|---|---|
+| HTTP | `app/main.py` | Rutas, parámetros, validación Pydantic, códigos y respuestas HTTP | No contiene la implementación de persistencia ni las reglas de existencia del producto |
+| Esquemas HTTP | `app/schemas/product.py`, `app/schemas/errors.py` | Contratos JSON de entrada/salida y documentación OpenAPI | No acceden a repositorios ni llaman proveedores externos |
+| Servicio | `app/services/product_service.py` | Casos de uso CRUD y regla de producto inexistente | No importa FastAPI ni construye `Response` |
+| Dominio | `app/domain/models.py`, `app/domain/exceptions.py` | Entidad, datos de producto y excepción de dominio | No depende de HTTP, Pydantic ni almacenamiento concreto |
+| Contrato de persistencia | `app/repositories/product_repository.py` | Define operaciones que debe ofrecer cualquier repositorio | No elige una base de datos específica |
+| Persistencia de ejemplo | `app/repositories/in_memory_product_repository.py` | Implementación temporal en memoria | No se utiliza como almacenamiento de producción |
+| Composición y errores HTTP | `app/core/dependencies.py`, `app/core/exception_handlers.py` | Selecciona el servicio y traduce la excepción de dominio a HTTP | No contiene las reglas CRUD del servicio |
 
-Para detener una operación y devolver un error HTTP controlado, se utiliza `raise HTTPException(...)`, no `return`. En este proyecto, `_get_product_or_404()` centraliza la comprobación de existencia y se reutiliza al consultar, actualizar o eliminar un producto.
+El recorrido de un error por ID inexistente es:
 
-Ejemplo simplificado:
-
-```python
-from fastapi import HTTPException, status
-
-raise HTTPException(
-    status_code=status.HTTP_404_NOT_FOUND,
-    detail=f"Product with id {product_id} not found",
-)
+```text
+HTTP request
+  -> endpoint FastAPI
+  -> ProductService.get_by_id / update / delete
+  -> ProductNotFoundError (dominio, sin conocimiento de HTTP)
+  -> exception handler (adaptador HTTP)
+  -> 404 + {"detail": "Product with id N not found"}
 ```
 
-`detail` debe ser un mensaje breve y seguro. No se deben incluir tokens, claves, rutas locales, trazas de ejecución ni otros datos internos.
+El repositorio se inyecta mediante `get_product_service`. Por ahora esa dependencia crea un `InMemoryProductRepository`; al añadir una base de datos se podrá sustituir por otra implementación del protocolo sin modificar el contrato HTTP ni las reglas del servicio.
 
-## 2. Contrato para producto inexistente
+## 2. Contrato público de errores
 
-Los endpoints siguientes documentan una respuesta `404` con el esquema `ErrorResponse`:
+Una solicitud a un producto inexistente recibe:
 
-- `GET /api/v1/products/{product_id}`
-- `PUT /api/v1/products/{product_id}`
-- `DELETE /api/v1/products/{product_id}`
-
-Cuerpo de ejemplo:
+```http
+HTTP/1.1 404 Not Found
+Content-Type: application/json
+```
 
 ```json
 {
@@ -39,69 +44,102 @@ Cuerpo de ejemplo:
 }
 ```
 
-El código HTTP real es `404 Not Found`. `ErrorResponse` documenta el contrato de respuesta en OpenAPI; no reemplaza el manejador estándar de `HTTPException` de FastAPI.
+Se mantiene el formato `{"detail": "..."}` para no romper los clientes creados durante las secciones anteriores. `ErrorResponse` documenta la forma en OpenAPI; el manejador valida su contenido con Pydantic antes de serializarlo.
 
-## 3. Códigos HTTP que debemos distinguir
+### Códigos de estado relevantes
 
-| Código | Cuándo aparece en esta API | Significado para el cliente |
-|---|---|---|
-| `201 Created` | `POST /api/v1/products` correcto | El producto fue creado. |
-| `204 No Content` | `DELETE /api/v1/products/{product_id}` correcto | La operación terminó sin cuerpo de respuesta. |
-| `404 Not Found` | ID de producto inexistente en GET, PUT o DELETE | No existe el recurso solicitado. |
-| `405 Method Not Allowed` | Se usa un método no admitido por una ruta existente | La ruta existe, pero no acepta ese método. |
-| `422 Unprocessable Entity` | Cuerpo, path o query no cumple tipos o restricciones | Corregir los datos enviados. |
-| `500 Internal Server Error` | Excepción inesperada no controlada | Error del servidor; no exponer detalles internos al cliente. |
+| Código | Uso actual |
+|---|---|
+| `200 OK` | Consulta, listado o actualización correctos |
+| `201 Created` | Producto creado |
+| `204 No Content` | Producto eliminado; cuerpo vacío |
+| `404 Not Found` | Un ID de producto válido no está presente en el repositorio actual |
+| `405 Method Not Allowed` | Método HTTP no permitido por una ruta existente |
+| `422 Unprocessable Entity` | Tipo, parámetro o cuerpo no cumple el contrato Pydantic/FastAPI |
+| `500 Internal Server Error` | Error inesperado; no debe exponerse su traza o secretos al cliente |
 
-No inventamos respuestas `400`, `401`, `403` o `409` en esta sección: todavía no hay reglas de negocio, autenticación o conflictos de persistencia que las requieran. Se introducirán cuando la funcionalidad correspondiente exista.
+No se añaden `401`, `403` o `409` artificialmente: autenticación, permisos y conflictos de persistencia aún no forman parte del CRUD de ejemplo.
 
-## 4. Validación manual en Swagger UI
+## 3. Diferencia entre dos errores 404
 
-1. Activa el entorno virtual y arranca el servidor desde la raíz del repositorio:
+- **Producto inexistente:** el camino de la ruta existe y el servicio no encuentra el ID. Se responde con `ErrorResponse` y un mensaje identificativo.
+- **Ruta inexistente:** FastAPI no encuentra una ruta que coincida, por ejemplo `/ruta-que-no-existe`. Conserva el error estándar `{"detail": "Not Found"}`.
 
-   ```powershell
-   fastapi dev
-   ```
+Ambos producen `404`, pero representan situaciones distintas y no se deben confundir.
 
-2. Abre <http://127.0.0.1:8000/docs>.
-3. Ejecuta `GET /api/v1/products/999999`. Debe devolver `404` y el objeto JSON de ejemplo.
-4. Ejecuta `PUT /api/v1/products/999999` con un cuerpo válido. Debe devolver `404`, no `200`.
-5. Ejecuta `DELETE /api/v1/products/999999`. Debe devolver `404`, no `204`.
-6. Crea un producto y confirma que consultarlo con su ID produce `200`.
-7. Ejecuta `GET /api/v1/products/0` y `GET /api/v1/products/abc`. Ambos deben devolver `422`: `0` infringe la restricción `ge=1` y `abc` no puede convertirse a entero.
-8. Envía un cuerpo inválido a `POST /api/v1/products`. Debe seguir devolviendo `422` con los detalles de validación de FastAPI.
-9. En Swagger, despliega las respuestas de GET, PUT y DELETE por ID. Debe aparecer el esquema `ErrorResponse` para `404`.
+## 4. Errores de validación 422
 
-También puedes revisar el contrato OpenAPI en <http://127.0.0.1:8000/openapi.json>.
+No se sobrescribe el manejador predeterminado de validación. De este modo, un cliente recibe los errores estructurados de FastAPI/Pydantic (normalmente `detail` como una lista de fallos), por ejemplo:
 
-## 5. Validación por PowerShell (opcional)
+- `/api/v1/products/abc`: no se puede convertir `abc` a un entero.
+- `/api/v1/products/0`: el identificador debe ser mayor o igual a uno.
+- `/api/v1/products?limit=0`: el límite debe estar entre 1 y 100.
+- `POST /api/v1/products` con `name="TV"` o con un campo no permitido: `422`.
 
-Con el servidor activo, `curl.exe` permite ver tanto el código HTTP como el cuerpo de la respuesta:
+El cuerpo de error de validación no es `ErrorResponse`, porque `ErrorResponse.detail` es una cadena y el formato estándar de FastAPI utiliza una lista de problemas. Esa diferencia queda deliberadamente documentada.
+
+## 5. Pruebas automatizadas
+
+Se incorporaron pruebas con `unittest` y `TestClient`, sin requerir un framework de pruebas adicional.
+
+Desde la raíz del repositorio, con el entorno `.venv` activado:
 
 ```powershell
-curl.exe -i http://127.0.0.1:8000/api/v1/products/999999
+python -m unittest discover -s tests -v
 ```
 
-Busca `404` en la primera línea de la respuesta y verifica que el cuerpo contenga `detail` con un mensaje claro.
+Las pruebas comprueban:
 
-## 6. Alcance y decisiones
+- `404` para GET, PUT y DELETE de un ID inexistente.
+- `201`, `200` y `204` en operaciones CRUD correctas, incluido el cuerpo vacío del `204`.
+- `422` para parámetros y payloads inválidos.
+- Paginación e inclusión/omisión de `description`.
+- La referencia de esquema `ErrorResponse` en OpenAPI para las tres operaciones por ID.
+- La lógica del servicio sin utilizar un cliente HTTP, demostrando que la regla de producto inexistente no depende de FastAPI.
 
-- Se conserva el formato de error predeterminado de FastAPI para `HTTPException` (`{"detail": "..."}`).
-- No se sobrescribe globalmente el manejador de `HTTPException` ni el de errores de validación. Mantener `422` evita introducir un formato diferente solo para algunos errores.
-- `ErrorResponse` se usa en `responses` para que OpenAPI documente el `404` de los endpoints que buscan un producto.
-- Una URL inexistente que no coincide con ninguna ruta también puede devolver `404`, pero es un error de enrutamiento y no necesariamente contiene el mismo mensaje de dominio.
-- El almacenamiento continúa en memoria: un `404` significa que el identificador no está presente en el proceso actual, no que se consultó una base de datos durable.
+Para comprobar solo el contrato HTTP:
 
-## Criterios de aceptación de esta sección
+```powershell
+python -m unittest tests.test_http_errors -v
+```
 
-- [ ] El CRUD sigue funcionando para datos válidos.
-- [ ] GET, PUT y DELETE por ID devuelven `404` si el producto no existe.
-- [ ] Los errores `404` tienen `{"detail": "..."}` y no exponen datos internos.
-- [ ] Los valores path y los cuerpos inválidos conservan `422`.
-- [ ] Swagger/OpenAPI documenta el esquema `ErrorResponse` para el `404` de GET, PUT y DELETE por ID.
-- [ ] `git diff --check` pasa, los cambios se revisan y se realiza commit/push manual.
+Para comprobar solo el servicio:
+
+```powershell
+python -m unittest tests.test_product_service -v
+```
+
+## 6. Validación manual con Swagger
+
+1. Inicia el servidor con `fastapi dev`.
+2. Abre <http://127.0.0.1:8000/docs>.
+3. Prueba GET, PUT y DELETE para `/api/v1/products/999999`: los tres deben responder `404` con el contrato `ErrorResponse`.
+4. Crea un producto y comprueba GET, PUT y DELETE con el ID retornado.
+5. Prueba `/api/v1/products/abc`, `/api/v1/products/0` y `?limit=0`: deben responder `422`.
+6. Inspecciona <http://127.0.0.1:8000/openapi.json> y confirma el esquema de las respuestas `404`.
+
+## 7. Límites que permanecen
+
+- La persistencia predeterminada sigue siendo en memoria: se pierde al reiniciar y no se comparte entre procesos o instancias. El bloqueo del repositorio evita colisiones locales del contador, pero no lo convierte en una base de datos distribuida.
+- Esta sección crea el límite servicio/repositorio y el adaptador de errores. Los endpoints siguen en `main.py`; `APIRouter` se incorpora en la sección 7.
+- No se incluye autenticación, autorización, rate limiting, observabilidad de producción ni proveedor LLM todavía.
+- No se atrapan excepciones genéricas para devolver mensajes técnicos al cliente. Los errores inesperados deben dejarse bajo el control de FastAPI/ASGI y registrarse de manera segura en el entorno de operación.
+
+## Criterios de aceptación de la sección 6
+
+- [ ] El CRUD conserva sus contratos y resultados correctos.
+- [ ] El servicio no importa FastAPI y las excepciones de dominio no dependen de HTTP.
+- [ ] GET, PUT y DELETE por un ID inexistente devuelven `404` con `ErrorResponse`.
+- [ ] Los parámetros y cuerpos inválidos siguen produciendo `422`.
+- [ ] `204 No Content` no tiene cuerpo.
+- [ ] OpenAPI declara `ErrorResponse` para `404` en las tres operaciones por ID.
+- [ ] Las pruebas automatizadas pasan en el entorno del usuario.
+- [ ] La arquitectura y sus limitaciones están documentadas y el cambio se revisa antes del commit manual.
 
 ## Referencias
 
-- [FastAPI — Manejo de errores](https://fastapi.tiangolo.com/es/tutorial/handling-errors/)
-- [FastAPI — Referencia de excepciones HTTP](https://fastapi.tiangolo.com/reference/exceptions/)
+- [FastAPI — Manejo de errores](https://fastapi.tiangolo.com/tutorial/handling-errors/)
+- [FastAPI — Manejo de errores (español)](https://fastapi.tiangolo.com/es/tutorial/handling-errors/)
+- [FastAPI — Testing](https://fastapi.tiangolo.com/tutorial/testing/)
+- [Pydantic — Models](https://docs.pydantic.dev/latest/concepts/models/)
 - [Video de referencia](https://www.youtube.com/watch?v=WrnFtgGLO38)

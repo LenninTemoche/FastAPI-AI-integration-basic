@@ -22,10 +22,16 @@ import app.main as main  # noqa: E402
 from app.main import app  # noqa: E402
 
 
+from app.core.dependencies import get_product_service  # noqa: E402
+from app.repositories.in_memory_product_repository import InMemoryProductRepository  # noqa: E402
+from app.services.product_service import ProductService  # noqa: E402
+
+
 def _reset_state() -> None:
     """Reinicia el almacenamiento en memoria entre pruebas."""
-    main._products.clear()
-    main._next_product_id = 1
+    repo = InMemoryProductRepository()
+    service = ProductService(repo)
+    app.dependency_overrides[get_product_service] = lambda: service
 
 
 def _client() -> TestClient:

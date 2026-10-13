@@ -4,11 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ErrorResponse(BaseModel):
-    """Formato de error para errores HTTP controlados por la aplicación.
-
-    FastAPI usa este formato por defecto para HTTPException cuando el valor de
-    ``detail`` es una cadena. La clase permite documentar el contrato en OpenAPI.
-    """
+    """Contrato estable para errores HTTP controlados por la API."""
 
     model_config = ConfigDict(extra="forbid")
 
