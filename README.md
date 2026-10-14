@@ -2,7 +2,7 @@
 
 API REST reutilizable con FastAPI, orientada a integraciones con aplicaciones web y móviles mediante HTTP/JSON, servicios Java/Python, proyectos de análisis de datos, modelos de Machine Learning y proveedores de IA generativa.
 
-> **Estado:** sección 6 preparada para validación local. Esta entrega incorpora un contrato de error `404` coherente y separa inicialmente las rutas, los casos de uso, el dominio y la persistencia. El CRUD sigue usando almacenamiento en memoria y la API aún no está lista para producción.
+> **Estado:** secciones 1–7 cerradas según las validaciones realizadas durante el desarrollo. La sección 8 (integración LLM por adaptador y API key) está pendiente. El CRUD demostrativo sigue usando almacenamiento en memoria, y la API aún no está lista para producción.
 
 ## Objetivo
 
@@ -27,36 +27,36 @@ Se utiliza un **monolito modular**: las capas comparten el despliegue inicial, p
 
 ```mermaid
 flowchart TD
-    CLIENT[Clientes<br/>Web · móvil · Python · Java] --> API[app/main.py<br/>Endpoints FastAPI]
-    API --> SCH[app/schemas/product.py<br/>Contratos Pydantic]
-    API --> DEPS[app/core/dependencies.py<br/>Punto de Composición]
-    DEPS --> SVC[app/services/product_service.py<br/>ProductService<br/>Casos de uso]
-    DEPS --> REPO_IMPL[app/repositories/in_memory_product_repository.py<br/>InMemoryProductRepository<br/>Adaptador temporal]
+    CLIENT[Clients<br/>Web · móvil · Python · Java] --> MAIN[app/main.py<br/>Composición FastAPI<br/>sin rutas CRUD]
+    MAIN --> ROOT[app/api/root.py<br/>GET /]
+    MAIN --> V1[app/api/v1/router.py<br/>prefijo /api/v1]
+    V1 --> PROD[app/api/v1/endpoints/products.py<br/>adaptador HTTP del CRUD]
+    PROD --> SVC[app/services/product_service.py<br/>ProductService<br/>Casos de uso]
     SVC --> REPO_PROTO[app/repositories/product_repository.py<br/>ProductRepository<br/>Protocolo]
-    SVC --> MODELS[app/domain/models.py<br/>Product / ProductDraft<br/>Sin dependencia HTTP]
-
-    subgraph REP["app/repositories/"]
-        REPO_PROTO
-        REPO_IMPL
-    end
+    REPO_PROTO --> REPO_IMPL[app/repositories/in_memory_product_repository.py<br/>InMemoryProductRepository<br/>Adaptador temporal]
 
     subgraph DOM["app/domain/"]
-        MODELS
-        EXC[app/domain/exceptions.py<br/>ProductNotFoundError]
+        MODELS["models.py<br/>Product / ProductDraft<br/>Sin dependencia HTTP"]
+        EXC["exceptions.py<br/>ProductNotFoundError"]
     end
 
     subgraph CORE["app/core/"]
-        DEPS
-        ERR[app/core/exception_handlers.py<br/>ProductNotFoundError → HTTP 404<br/>+ ErrorResponse]
+        DEPS["dependencies.py<br/>Punto de Composición<br/>(servicio + repositorio)"]
+        ERR["exception_handlers.py<br/>ProductNotFoundError → HTTP 404<br/>+ ErrorResponse"]
     end
 
-    REPO_PROTO --> REPO_IMPL
+    PROD --> DEPS
+    SVC --> MODELS
     SVC --> EXC
     EXC --> ERR
+    REPO_IMPL --> MODELS
+    REPO_IMPL --> EXC
 
     style CLIENT fill:#1a202c,stroke:#4a5568,color:#f1f5f9
-    style API fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style SCH fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style MAIN fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style ROOT fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style V1 fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style PROD fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style REPO_PROTO fill:#4a5568,stroke:#2d3748,color:#f1f5f9
     style REPO_IMPL fill:#4a5568,stroke:#2d3748,color:#f1f5f9
@@ -66,9 +66,7 @@ flowchart TD
     style DEPS fill:#4a5568,stroke:#2d3748,color:#f1f5f9
 ```
 
-La sección 7 moverá las rutas a `APIRouter`. La sección 8 incorporará una integración LLM por adaptador y API key configurada fuera del código. La arquitectura completa y las limitaciones están en [`docs/architecture.md`](docs/architecture.md).
-
-
+La sección 7 separó las rutas HTTP en routers `APIRouter` bajo `app/api/`. La arquitectura completa y las limitaciones están en [`docs/architecture.md`](docs/architecture.md).
 
 ## Casos de uso previstos
 
@@ -101,6 +99,19 @@ Desde la raíz del repositorio:
 Si ya existe `.venv`, actívalo y omite el comando de creación.
 Guía detallada: [`docs/setup.md`](docs/setup.md).
 
+Direcciones locales:
+
+- `GET /` — estado básico.
+- `GET /docs` — Swagger UI.
+- `GET /redoc` — ReDoc.
+- `GET /openapi.json` — contrato OpenAPI.
+
+Ejecutar pruebas desde la raíz del repositorio:
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
 Con el servidor activo, abre:
 
 - Inicio: http://127.0.0.1:8000/
@@ -110,18 +121,18 @@ Con el servidor activo, abre:
 
 ## Endpoints disponibles
 
-| Método | Ruta | Respuesta exitosa | Descripción |
-|---|---|---|---|
-| `GET` | `/` | `200` | Estado básico de la API |
-| `POST` | `/api/v1/products` | `201` | Crear producto |
-| `GET` | `/api/v1/products` | `200` | Listar con `skip`, `limit`, `include_desc` |
-| `GET` | `/api/v1/products/{product_id}` | `200` | Consultar por ID |
-| `PUT` | `/api/v1/products/{product_id}` | `200` | Reemplazar campos editables |
-| `DELETE` | `/api/v1/products/{product_id}` | `204` sin cuerpo | Eliminar por ID |
 
 
+| Método | Ruta                              | Descripción                                     |
+| ------- | --------------------------------- | ------------------------------------------------ |
+| `GET`   | `/`                               | Estado básico de la API                          |
+| `POST`  | `/api/v1/products`              | Crear un producto (`201`)                      |
+| `GET`   | `/api/v1/products`              | Listar con `skip`, `limit` e `include_desc` |
+| `GET`   | `/api/v1/products/{product_id}` | Consultar por ID                                 |
+| `PUT`   | `/api/v1/products/{product_id}` | Actualizar y conservar el ID                     |
+| `DELETE`| `/api/v1/products/{product_id}` | Eliminar (`204`, sin cuerpo)                   |
 
-### Contrato de error
+Las rutas versionadas se agrupan mediante `app/api/v1/router.py`. Las operaciones HTTP viven en `app/api/v1/endpoints/products.py`; los casos de uso están en `app/services/product_service.py`, el dominio en `app/domain/` y la persistencia detrás de `ProductRepository`.
 
 Un ID de producto inexistente en GET/PUT/DELETE devuelve `404`:
 
@@ -133,9 +144,16 @@ Un ID de producto inexistente en GET/PUT/DELETE devuelve `404`:
 
 Las entradas que no cumplen tipos o restricciones siguen devolviendo `422` con los detalles estructurados de FastAPI/Pydantic. El esquema `ErrorResponse` corresponde al error de recurso inexistente; no representa el formato de validación `422`.
 
+#### ¿Por qué un POST repetido genera otro ID?
+
+Cada solicitud válida `POST /api/v1/products` crea un recurso nuevo. Si se envía dos o tres veces el mismo JSON, se obtienen IDs distintos; es el contrato actual de creación, no un error del contador. El API no deduplica por igualdad de campos, porque esos campos no identifican universalmente la identidad de un producto. Consulta `docs/create-and-idempotency-semantics.md` para diferenciar unicidad de negocio e idempotencia de reintentos.
+
 ## Capas y directorios clave
 
-- `app/main.py`: capa HTTP; declara rutas y convierte DTOs Pydantic a/desde modelos del dominio. En sección 7 se extraerán los routers.
+- `app/main.py`: capa HTTP; crea la aplicación, instala manejadores de excepciones e incluye routers. No contiene operaciones CRUD.
+- `app/api/root.py`: `GET /` de estado básico.
+- `app/api/v1/router.py`: router agregador con prefijo `/api/v1`.
+- `app/api/v1/endpoints/products.py`: endpoints HTTP del CRUD adaptados a `ProductService`.
 - `app/schemas/`: contratos de entrada y salida HTTP.
 - `app/domain/`: `Product`, `ProductDraft` y excepciones sin dependencia de FastAPI.
 - `app/services/`: casos de uso de producto y regla de recurso inexistente.
@@ -145,39 +163,41 @@ Las entradas que no cumplen tipos o restricciones siguen devolviendo `422` con l
 - `app/core/exception_handlers.py`: traducción de la excepción de dominio a la respuesta HTTP documentada.
 - `tests/`: pruebas de contrato HTTP y de servicio.
 
-
 ## Limitaciones y seguridad
 
 - El repositorio por defecto es en memoria: los datos desaparecen al reiniciar y no se comparten entre procesos/instancias. No se debe usar como persistencia real.
-- Esta sección no agrega autenticación, autorización, rate limiting, logging estructurado ni despliegue de producción.
+- No se incluye autenticación, autorización, rate limiting, logging estructurado ni despliegue de producción.
 - El proveedor LLM está pendiente. Su credencial deberá permanecer en backend, fuera de Git y fuera de respuestas/logs.
 - Los errores controlados no revelan trazas ni secretos. No convertir errores imprevistos en mensajes técnicos públicos.
 
 ## Documentación del proyecto
 
-- [Alcance del proyecto](docs/project-scope.md)
-- [Arquitectura evolutiva](docs/architecture.md)
+- [Alcance y requisitos del proyecto](docs/project-scope.md)
+- [Arquitectura actual](docs/architecture.md)
 - [Criterios de aceptación](docs/acceptance-criteria.md)
-- [Instalación y primer endpoint — sección 2](docs/setup.md)
-- [Rutas y parámetros — sección 3](docs/path-and-query-parameters.md)
-- [Validación con Pydantic — sección 4](docs/pydantic-validation.md)
-- [CRUD — sección 5](docs/crud.md)
-- [Manejo de errores HTTP y capas — sección 6](docs/http-errors.md)
+- [Instalación y primer endpoint](docs/setup.md)
+- [Rutas y parámetros](docs/path-and-query-parameters.md)
+- [Validación con Pydantic](docs/pydantic-validation.md)
+- [CRUD](docs/crud.md)
+- [Manejo de errores HTTP y capas](docs/http-errors.md)
+- [Modularización con APIRouter](docs/api-routing.md)
+- [Creación repetida e idempotencia](docs/create-and-idempotency-semantics.md)
+- [Manifiesto de archivos de sección 7](docs/section-07-manifest.md)
 - [Reglas para agentes de programación](AGENTS.md)
 
 ## Roadmap por secciones
 
-| Sección | Tema                                               | Estado      |
-| -------- | -------------------------------------------------- | ----------- |
-| 1        | Introducción, alcance y arquitectura              | Completada  |
-| 2        | Entorno de desarrollo y primer endpoint            | Completada  |
-| 3        | Rutas y parámetros                                | Completada  |
-| 4        | Validación con Pydantic                           | Completada  |
-| 5        | CRUD                                               | Completada  |
-| 6        | Manejo de errores HTTP y separación de capas       | Completada (validada localmente) |
-| 7        | Modularización con routers                        | Siguiente   |
-| 8        | Integración con proveedor LLM mediante API key    | Pendiente   |
-| 9        | Pruebas, seguridad y preparación para producción | Pendiente   |
+| Sección | Tema                                               | Estado                           |
+| -------- | -------------------------------------------------- | -------------------------------- |
+| 1        | Introducción, alcance y arquitectura              | Completada                       |
+| 2        | Entorno de desarrollo y primer endpoint            | Completada                       |
+| 3        | Rutas y parámetros                                | Completada                       |
+| 4        | Validación con Pydantic                           | Completada                       |
+| 5        | CRUD                                               | Completada                       |
+| 6        | Manejo de errores HTTP y separación de capas      | Completada                       |
+| 7        | Modularización con `APIRouter`                  | Completada                       |
+| 8        | Integración con proveedor LLM mediante API key    | Activa                        |
+| 9        | Pruebas, seguridad y preparación para producción | Pendiente                        |
 
 ## Flujo de trabajo
 

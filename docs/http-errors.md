@@ -2,13 +2,18 @@
 
 **Objetivo del proyecto:** una API reutilizable mediante HTTP/JSON que mantenga separadas la capa HTTP, la lógica de aplicación, la persistencia y las integraciones externas.
 
-Esta entrega mantiene las rutas en `app/main.py` para respetar la secuencia didáctica. Como mejora de arquitectura, introduce una excepción de dominio, un manejador HTTP, un servicio de productos y un contrato de repositorio. La modularización de rutas con `APIRouter` sigue reservada para la sección 7.
+Esta entrega separa las rutas en `app/api/` mediante routers `APIRouter` (sección 7),
+introduce una excepción de dominio, un manejador HTTP, un servicio de productos y un
+contrato de repositorio. `app/main.py` se limita a componer la aplicación e instalar los
+manejadores de excepciones.
 
 ## 1. Qué se separó en esta sección
 
 | Capa | Archivo | Responsabilidad | Dependencia que debe evitar |
 |---|---|---|---|
-| HTTP | `app/main.py` | Rutas, parámetros, validación Pydantic, códigos y respuestas HTTP | No contiene la implementación de persistencia ni las reglas de existencia del producto |
+| HTTP | `app/api/v1/endpoints/products.py`, `app/api/root.py` | Rutas, parámetros, validación Pydantic, códigos y respuestas HTTP | No contiene la implementación de persistencia ni las reglas de existencia del producto |
+| Router agregador | `app/api/v1/router.py` | Prefijo `/api/v1` y composición de routers de recursos | No contiene operaciones HTTP concretas |
+| Composición FastAPI | `app/main.py` | Crea la aplicación, instala manejadores e incluye routers | No contiene lógica CRUD ni rutas por recurso |
 | Esquemas HTTP | `app/schemas/product.py`, `app/schemas/errors.py` | Contratos JSON de entrada/salida y documentación OpenAPI | No acceden a repositorios ni llaman proveedores externos |
 | Servicio | `app/services/product_service.py` | Casos de uso CRUD y regla de producto inexistente | No importa FastAPI ni construye `Response` |
 | Dominio | `app/domain/models.py`, `app/domain/exceptions.py` | Entidad, datos de producto y excepción de dominio | No depende de HTTP, Pydantic ni almacenamiento concreto |
@@ -16,18 +21,21 @@ Esta entrega mantiene las rutas en `app/main.py` para respetar la secuencia did�
 | Persistencia de ejemplo | `app/repositories/in_memory_product_repository.py` | Implementación temporal en memoria | No se utiliza como almacenamiento de producción |
 | Composición y errores HTTP | `app/core/dependencies.py`, `app/core/exception_handlers.py` | Selecciona el servicio y traduce la excepción de dominio a HTTP | No contiene las reglas CRUD del servicio |
 
-El recorrido de un error por ID inexistente es:
+## Recorrido de un error de producto inexistente
 
 ```text
-HTTP request
-  -> endpoint FastAPI
-  -> ProductService.get_by_id / update / delete
+Solicitud HTTP
+  -> app/api/v1/endpoints/products.py
+  -> ProductService
   -> ProductNotFoundError (dominio, sin conocimiento de HTTP)
-  -> exception handler (adaptador HTTP)
+  -> app/core/exception_handlers.py
   -> 404 + {"detail": "Product with id N not found"}
 ```
 
-El repositorio se inyecta mediante `get_product_service`. Por ahora esa dependencia crea un `InMemoryProductRepository`; al añadir una base de datos se podrá sustituir por otra implementación del protocolo sin modificar el contrato HTTP ni las reglas del servicio.
+`ProductService` no importa FastAPI. `ProductNotFoundError` pertenece al dominio,
+mientras que el manejador en `app/core/exception_handlers.py` traduce esa
+excepción al formato HTTP público. Se conserva el contrato `{"detail": "..."}`
+para no romper clientes creados en secciones anteriores.
 
 ## 2. Contrato público de errores
 
@@ -46,19 +54,20 @@ Content-Type: application/json
 
 Se mantiene el formato `{"detail": "..."}` para no romper los clientes creados durante las secciones anteriores. `ErrorResponse` documenta la forma en OpenAPI; el manejador valida su contenido con Pydantic antes de serializarlo.
 
-### Códigos de estado relevantes
+## Códigos de respuesta
 
-| Código | Uso actual |
+| Código | Uso |
 |---|---|
-| `200 OK` | Consulta, listado o actualización correctos |
-| `201 Created` | Producto creado |
-| `204 No Content` | Producto eliminado; cuerpo vacío |
-| `404 Not Found` | Un ID de producto válido no está presente en el repositorio actual |
-| `405 Method Not Allowed` | Método HTTP no permitido por una ruta existente |
-| `422 Unprocessable Entity` | Tipo, parámetro o cuerpo no cumple el contrato Pydantic/FastAPI |
-| `500 Internal Server Error` | Error inesperado; no debe exponerse su traza o secretos al cliente |
+| `200 OK` | Consulta, listado o actualización correcta. |
+| `201 Created` | Producto creado. |
+| `204 No Content` | Producto eliminado, sin cuerpo. |
+| `404 Not Found` | El ID del producto no existe en el repositorio activo. |
+| `405 Method Not Allowed` | Método no admitido por una ruta existente. |
+| `422 Unprocessable Entity` | Parámetros o cuerpo no cumplen el contrato. |
+| `500 Internal Server Error` | Fallo inesperado; no se deben filtrar trazas ni secretos. |
 
-No se añaden `401`, `403` o `409` artificialmente: autenticación, permisos y conflictos de persistencia aún no forman parte del CRUD de ejemplo.
+No se añaden `401`, `403` o `409` de manera artificial; autenticación, autorización
+y reglas de conflicto de negocio todavía no forman parte del CRUD de ejemplo.
 
 ## 3. Diferencia entre dos errores 404
 
@@ -108,6 +117,15 @@ Para comprobar solo el servicio:
 ```powershell
 python -m unittest tests.test_product_service -v
 ```
+### Verificación tras la modularización
+
+Los tests de contrato comprueban que `GET`, `PUT` y `DELETE` por ID mantienen su
+respuesta 404 documentada en OpenAPI y que `DELETE` correcto devuelve 204 sin
+contenido. Ejecutar 
+
+```powershell
+python -m unittest discover -s tests -v
+```
 
 ## 6. Validación manual con Swagger
 
@@ -120,8 +138,8 @@ python -m unittest tests.test_product_service -v
 
 ## 7. Límites que permanecen
 
-- La persistencia predeterminada sigue siendo en memoria: se pierde al reiniciar y no se comparte entre procesos o instancias. El bloqueo del repositorio evita colisiones locales del contador, pero no lo convierte en una base de datos distribuida.
-- Esta sección crea el límite servicio/repositorio y el adaptador de errores. Los endpoints siguen en `main.py`; `APIRouter` se incorpora en la sección 7.
+- La persistencia predeterminada sigue siendo en memoria: se pierde al reiniciar y no se comparte entre procesos o instancias. El bloqueo del repositorio evita colisiones locales del/countador, pero no lo convierte en una base de datos distribuida.
+- Esta sección crea el límite servicio/repositorio y el adaptador de errores. Las rutas están en `app/api/` mediante `APIRouter` (sección 7).
 - No se incluye autenticación, autorización, rate limiting, observabilidad de producción ni proveedor LLM todavía.
 - No se atrapan excepciones genéricas para devolver mensajes técnicos al cliente. Los errores inesperados deben dejarse bajo el control de FastAPI/ASGI y registrarse de manera segura en el entorno de operación.
 

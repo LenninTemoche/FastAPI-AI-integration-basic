@@ -1,6 +1,9 @@
 # Criterios de aceptación
 
-Los criterios de las secciones 1–4 se conservan como hitos históricos cerrados según seguimiento del desarrollo del proyecto. Las rutas y los contratos evolucionan en las siguientes secciones: por ejemplo, el endpoint didáctico de validación de la sección 4 se sustituye por el CRUD real en la sección 5. Las casillas de la sección activa solo deben marcarse tras validar localmente.
+Los criterios reflejan las secciones documentadas del proyecto. No marcar la
+sección activa como cerrada hasta ejecutar las verificaciones en el entorno local
+con Python 3.13 y las dependencias del repositorio.
+
 
 ## A. Sección 1 — alcance y arquitectura
 
@@ -62,49 +65,56 @@ Hito cerrado según el flujo de trabajo del proyecto. El endpoint demostrativo `
 
 Sección completada y verificada localmente. El endpoint demostrativo `POST /api/v1/products/validate` se retiró deliberadamente en la sección 5; `ProductCreate` se conserva y se aplica al CRUD.
 
-- [x] Crear (`POST`), listar (`GET`), consultar (`GET` por ID), actualizar (`PUT`) y eliminar (`DELETE`).
-- [x] Paginación `skip`/`limit` y opción `include_desc`.
-- [x] Estados `201`, `200` y `204` documentados.
-- [x] Limitación de almacenamiento en memoria documentada.
+- [x] E1 Crear (`POST`), listar (`GET`), consultar (`GET` por ID), actualizar (`PUT`) y eliminar (`DELETE`).
+- [x] E2 Paginación `skip`/`limit` y opción `include_desc`.
+- [x] E3 Estados `201`, `200` y `204` documentados.
+- [x] E4 Limitación de almacenamiento en memoria documentada.
 
-## F. Sección 6 — manejo de errores HTTP y separación en capas (sección activa)
+## Secciones 1-6 completadas y verificadas localmente.
 
-- [x] F1. CRUD validado localmente después del refactor.
-- [x] F2. `ProductService` no importa FastAPI y contiene los casos de uso.
-- [x] F3. El dominio define `Product`, `ProductDraft` y `ProductNotFoundError` sin dependencias HTTP.
-- [x] F4. El servicio depende del protocolo `ProductRepository`, no de una base de datos concreta.
-- [x] F5. La implementación en memoria está fuera de `main.py` y se describe como temporal.
-- [x] F6. GET, PUT y DELETE por ID inexistente devuelven `404` con `{"detail": "..."}`.
-- [x] F7. La validación automática de FastAPI/Pydantic sigue devolviendo `422`.
-- [x] F8. DELETE correcto devuelve `204` sin cuerpo.
-- [x] F9. OpenAPI documenta `ErrorResponse` en GET, PUT y DELETE por ID.
-- [x] F10. Todas las pruebas automatizadas pasan con `python -m unittest discover -s tests -v`.
-- [x] F11. `git diff --check` pasa y se revisa el diff completo.
-- [ ] F12. Commit y push manual realizados.
+- [x] Alcance y arquitectura inicial documentados.
+- [x] Entorno y primer endpoint validados localmente según seguimiento del proyecto.
+- [x] Rutas y parámetros documentados y validados localmente.
+- [x] Contratos Pydantic integrados al CRUD.
+- [x] CRUD de productos y paginación en memoria.
+- [x] Errores HTTP documentados; dominio, servicio y repositorio separados.
+- [x] El repositorio mantiene almacenamiento en memoria explícitamente no apto para producción.
 
-## G. Objetivo global — avance documental pendientes
+**En las secciones siguientes se trabajará en la separación de capas y la integración con IA**
 
-- [ ] G1. Instalación reproducible y dependencias documentadas/bloqueadas.
-- [ ] G2. API versionada bajo `/api/v1`.
-- [ ] G3. Contratos de entrada/salida con Pydantic y validaciones probadas.
-- [ ] G4. CRUD funcional con manejo coherente de errores HTTP.
-- [ ] G5. Routers, servicios y repositorios separados.
-- [ ] G6. Pruebas automatizadas de rutas, servicios y errores relevantes.
-- [ ] G7. Llamadas externas con timeout y tratamiento de fallos.
-- [ ] G8. Secretos fuera del control de versiones y de los logs.
-- [ ] G9. Proveedor LLM intercambiable mediante un adaptador.
-- [ ] G10. Guía de integración desde al menos un cliente externo.
-- [ ] G11. Limitaciones de persistencia, rendimiento y despliegue documentadas.
-- [ ] G12. Revisión específica de seguridad antes de considerar el despliegue en producción.
-- [ ] G13. Rutas organizadas con `APIRouter` sin cambiar contratos públicos.
-- [ ] G14. Servicio, dominio y persistencia desacoplados de la capa HTTP.
-- [ ] G15. Integración LLM intercambiable mediante un adaptador; la API key permanece en el backend.
-- [ ] G16. Clientes externos integrados por HTTP/JSON con contratos y errores documentados.
-- [ ] G17. Autenticación, autorización, límites de consumo y observabilidad cuando el uso lo requiera.
-- [ ] G18. Pruebas ampliadas y revisión de seguridad antes de producción.
-- [ ] G19. Estrategia de persistencia durable definida y probada si se requiere conservar datos.
-- [ ] G20. Docker y despliegue reproducible verificados si forman parte del alcance.
+## F. Sección 6 — manejo de errores HTTP y separación en capas 
 
-## Condición de cierre de la sección 6
+- [x] F1 El servicio no importa FastAPI y las entidades de dominio no dependen de HTTP.
+- [x] F2 El servicio depende del protocolo `ProductRepository`.
+- [x] F3 GET/PUT/DELETE por ID inexistente devuelven `404` con formato `{"detail":"..."}`.
+- [x] F4 Validaciones siguen devolviendo `422`; DELETE correcto devuelve `204` sin cuerpo.
+- [x] F5 Se documenta `ErrorResponse` en OpenAPI.
 
-Marcar F1–F12 solo tras instalar/usar el entorno del proyecto, ejecutar las pruebas, probar las rutas en Swagger, revisar cambios y confirmar el commit manual. No declarar la API lista para producción en esta sección.
+
+## Sección 7 — modularización con APIRouter (activa)
+
+- [ ] G1 `app/main.py` solo compone la aplicación, maneja el registro de routers y los manejadores HTTP.
+- [ ] G2 `GET /` se conserva en un router general.
+- [ ] G3 El CRUD se mueve a `app/api/v1/endpoints/products.py`.
+- [ ] G4 `app/api/v1/router.py` agrega routers bajo `/api/v1`.
+- [ ] G5 Se conservan exactamente los métodos y paths públicos existentes.
+- [ ] G6 Se conservan respuestas 200, 201, 204, 404 y 422, esquemas y parámetros.
+- [ ] G7 Swagger/OpenAPI enumera cada endpoint solo una vez y mantiene el esquema `ErrorResponse` para los 404.
+- [ ] G8 Las pruebas existentes y `tests/test_product_create_semantics.py` pasan.
+- [ ] G9 Dos POST con payloads idénticos crean dos recursos con IDs distintos; este contrato está documentado, no se trata como deduplicación.
+- [ ] G10 `docs/api-routing.md`, `docs/create-and-idempotency-semantics.md` y referencias relacionadas están actualizadas.
+- [ ] G11 `git diff --check` pasa, el diff revisado y el commit/push manual queda realizado.
+
+
+## Objetivos globales pendientes
+
+- [ ] H1 Proveedor LLM desacoplado detrás de un adaptador, llamado mediante API key en el servidor.
+- [ ] H2 Autenticación de consumidores, límites de consumo y secretos gestionados correctamente.
+- [ ] H3 Persistencia durable y configuración por entorno.
+- [ ] H4 Pruebas de integración para llamadas externas, timeout y errores del proveedor.
+- [ ] H5 Documentación de integración para Python, Java/Spring Boot y clientes web.
+- [ ] H6 Preparación para Docker, CI y despliegue.
+
+## Condición de cierre de la sección 7
+
+Marcar G1-G11 solo tras revisar cambios y confirmar funcionalidad de modularización y que no hayan errores. No declarar la API lista para producción en esta sección.
