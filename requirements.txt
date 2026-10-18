@@ -1,3 +1,8 @@
 # Se fija FastAPI para evitar que la versión principal cambie silenciosamente.
 # El extra [standard] incluye el CLI de FastAPI y herramientas de servidor/desarrollo.
 fastapi[standard]==0.143.0
+
+# Dependencias directas de la integración LLM.
+httpx>=0.28,<1.0
+pydantic-settings>=2.10,<3.0
+python-dotenv>=1.0,<2.0

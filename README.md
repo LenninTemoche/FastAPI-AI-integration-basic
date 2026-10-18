@@ -2,7 +2,7 @@
 
 API REST reutilizable con FastAPI, orientada a integraciones con aplicaciones web y móviles mediante HTTP/JSON, servicios Java/Python, proyectos de análisis de datos, modelos de Machine Learning y proveedores de IA generativa.
 
-> **Estado:** secciones 1–7 cerradas según las validaciones realizadas durante el desarrollo. La sección 8 (integración LLM por adaptador y API key) está pendiente. El CRUD demostrativo sigue usando almacenamiento en memoria, y la API aún no está lista para producción.
+> **Estado:** sección 8 en validación local. Se incorpora una ruta de generación LLM detrás de un puerto y un adaptador configurable. El CRUD sigue usando almacenamiento en memoria. La API no está lista para producción hasta completar la revisión de seguridad y operación.
 
 ## Objetivo
 
@@ -10,20 +10,21 @@ Construir una API modular y documentada que pueda integrarse en distintos proyec
 
 ## Alcance de la primera versión
 
-- Aplicación REST basada en FastAPI.
+- Aplicación REST basada en FastAPI, versionada bajo `/api/v1` y documentación interactiva OpenAPI/Swagger.
 - Contratos de entrada y salida definidos mediante Pydantic.
-- API versionada bajo `/api/v1`.
 - Recurso CRUD demostrativo para aprender y validar los contratos.
 - Capa de repositorio que permitan cambiar el almacenamiento, para no acoplar la lógica de negocio a una tecnología concreta.
-- Integración LLM mediante un adaptador de proveedor, seleccionado por configuración.
-- Autenticación y manejo seguro de secretos antes de exponer servicios a consumidores no confiables.
-- Pruebas automatizadas y documentación para consumidores humanos y agentes de programación.
+- Separación inicial entre routers, servicios, dominio y protocolo de persistencia.
+- Integración LLM con un adaptador HTTPX asíncrono que usa API key del lado servidor.
+- Contrato de respuesta LLM propio, independiente del JSON original del proveedor.
+- Configuración del proveedor mediante variables de entorno.
+- Pruebas automatizadas que simulan el proveedor; la suite no necesita una clave real ni incurre en costes.
+- Documentación dirigida a desarrolladores y agentes de programación.
 
-La primera iteración didáctica podrá utilizar almacenamiento en memoria. Eso servirá para aprender, pero no se considerará persistencia apta para producción.No contiene todavía autenticación, persistencia duradera ni integración de IA.
 
-Se utiliza un **monolito modular**: las capas comparten el despliegue inicial, pero exponen responsabilidades e interfaces explícitas. No implica que ya exista una arquitectura de microservicios.
+La arquitectura es un **monolito modular**: comparte un proceso de despliegue en esta fase, pero separa responsabilidades para que los adaptadores se puedan sustituir sin reescribir todos los endpoints.
 
-## Arquitectura actual
+## Arquitectura
 
 ```mermaid
 flowchart TD
@@ -31,9 +32,13 @@ flowchart TD
     MAIN --> ROOT[app/api/root.py<br/>GET /]
     MAIN --> V1[app/api/v1/router.py<br/>prefijo /api/v1]
     V1 --> PROD[app/api/v1/endpoints/products.py<br/>adaptador HTTP del CRUD]
+    V1 --> LLM_EP[app/api/v1/endpoints/llm.py<br/>adaptador HTTP del LLM]
     PROD --> SVC[app/services/product_service.py<br/>ProductService<br/>Casos de uso]
+    LLM_EP --> LLM_SVC[app/services/llm_service.py<br/>LLMService<br/>Caso de uso]
     SVC --> REPO_PROTO[app/repositories/product_repository.py<br/>ProductRepository<br/>Protocolo]
     REPO_PROTO --> REPO_IMPL[app/repositories/in_memory_product_repository.py<br/>InMemoryProductRepository<br/>Adaptador temporal]
+    LLM_SVC --> LLM_PORT[app/services/ports/llm_provider.py<br/>Puerto LLMProvider<br/>(sin dependencia HTTP)]
+    LLM_PORT --> LLM_ADAPT[app/integrations/llm/openai_compatible.py<br/>Adaptador OpenAI-compatible]
 
     subgraph DOM["app/domain/"]
         MODELS["models.py<br/>Product / ProductDraft<br/>Sin dependencia HTTP"]
@@ -43,6 +48,8 @@ flowchart TD
     subgraph CORE["app/core/"]
         DEPS["dependencies.py<br/>Punto de Composición<br/>(servicio + repositorio)"]
         ERR["exception_handlers.py<br/>ProductNotFoundError → HTTP 404<br/>+ ErrorResponse"]
+        LLM_ERR["exception_handlers.py<br/>errores LLM → HTTP 502/503/504"]
+        CONF["config.py<br/>configuración por entorno + SecretStr"]
     end
 
     PROD --> DEPS
@@ -52,21 +59,66 @@ flowchart TD
     REPO_IMPL --> MODELS
     REPO_IMPL --> EXC
 
+    LLM_EP --> DEPS
+    LLM_SVC --> CONF
+    LLM_ADAPT --> CONF
+
     style CLIENT fill:#1a202c,stroke:#4a5568,color:#f1f5f9
     style MAIN fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style ROOT fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style V1 fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style PROD fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style LLM_EP fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style LLM_SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style REPO_PROTO fill:#4a5568,stroke:#2d3748,color:#f1f5f9
     style REPO_IMPL fill:#4a5568,stroke:#2d3748,color:#f1f5f9
     style MODELS fill:#4a5568,stroke:#2d3748,color:#f1f5f9
     style EXC fill:#4a5568,stroke:#2d3748,color:#f1f5f9
     style ERR fill:#4a5568,stroke:#2d3748,color:#f1f5f9
     style DEPS fill:#4a5568,stroke:#2d3748,color:#f1f5f9
+    style LLM_PORT fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style LLM_ADAPT fill:#4a5568,stroke:#2d3748,color:#f1f5f9
+    style LLM_ERR fill:#4a5568,stroke:#2d3748,color:#f1f5f9
+    style CONF fill:#4a5568,stroke:#2d3748,color:#f1f5f9
 ```
 
-La sección 7 separó las rutas HTTP en routers `APIRouter` bajo `app/api/`. La arquitectura completa y las limitaciones están en [`docs/architecture.md`](docs/architecture.md).
+## Arquitectura resumida
+
+```text
+Consumidores HTTP/JSON
+         |
+         v
+FastAPI / APIRouter / Pydantic
+   |                         |
+   v                         v
+ProductService            LLMService
+   |                         |
+   v                         v
+ProductRepository         LLMProvider (contrato)
+   |                         |
+   v                         v
+Repositorio en memoria    Adaptador Chat Completions compatible
+                             |
+                             v
+                        Proveedor externo
+```
+
+
+- `app/main.py`: composición de la aplicación y ciclo de vida de recursos.
+- `app/api/`: adaptadores HTTP y routers.
+- `app/schemas/`: contratos HTTP/JSON.
+- `app/domain/`: entidades y errores de dominio sin dependencia de FastAPI.
+- `app/services/`: casos de uso (`ProductService` y `LLMService`).
+- `app/services/ports/llm_provider.py`: contrato del proveedor LLM.
+- `app/integrations/llm/`: adaptadores HTTP para proveedores externos.
+- `app/repositories/`: contrato e implementación temporal de persistencia del CRUD.
+- `app/core/config.py`: configuración por entorno y secretos.
+- `app/core/dependencies.py`: composición e inyección de dependencias.
+- `tests/`: pruebas de servicios, contratos HTTP y adaptador externo simulado.
+
+Detalles: [`docs/architecture.md`](docs/architecture.md).
+
 
 ## Casos de uso previstos
 
@@ -119,18 +171,18 @@ Con el servidor activo, abre:
 - ReDoc: http://127.0.0.1:8000/redoc
 - OpenAPI JSON: http://127.0.0.1:8000/openapi.json
 
-## Endpoints disponibles
+## Endpoints
 
+| Método | Ruta | Éxito | Descripción |
+|---|---|---:|---|
+| `GET` | `/` | `200` | Estado básico de la API. |
+| `POST` | `/api/v1/products` | `201` | Crear un producto. |
+| `GET` | `/api/v1/products` | `200` | Listar productos mediante `skip`, `limit` y `include_desc`. |
+| `GET` | `/api/v1/products/{product_id}` | `200` | Consultar producto por ID. |
+| `PUT` | `/api/v1/products/{product_id}` | `200` | Reemplazar campos editables y conservar el ID. |
+| `DELETE` | `/api/v1/products/{product_id}` | `204` | Eliminar producto sin cuerpo de respuesta. |
+| `POST` | `/api/v1/llm/ask` | `200` | Solicitar una generación de texto al proveedor configurado. |
 
-
-| Método | Ruta                              | Descripción                                     |
-| ------- | --------------------------------- | ------------------------------------------------ |
-| `GET`   | `/`                               | Estado básico de la API                          |
-| `POST`  | `/api/v1/products`              | Crear un producto (`201`)                      |
-| `GET`   | `/api/v1/products`              | Listar con `skip`, `limit` e `include_desc` |
-| `GET`   | `/api/v1/products/{product_id}` | Consultar por ID                                 |
-| `PUT`   | `/api/v1/products/{product_id}` | Actualizar y conservar el ID                     |
-| `DELETE`| `/api/v1/products/{product_id}` | Eliminar (`204`, sin cuerpo)                   |
 
 Las rutas versionadas se agrupan mediante `app/api/v1/router.py`. Las operaciones HTTP viven en `app/api/v1/endpoints/products.py`; los casos de uso están en `app/services/product_service.py`, el dominio en `app/domain/` y la persistencia detrás de `ProductRepository`.
 
@@ -154,21 +206,93 @@ Cada solicitud válida `POST /api/v1/products` crea un recurso nuevo. Si se env�
 - `app/api/root.py`: `GET /` de estado básico.
 - `app/api/v1/router.py`: router agregador con prefijo `/api/v1`.
 - `app/api/v1/endpoints/products.py`: endpoints HTTP del CRUD adaptados a `ProductService`.
+- `app/api/v1/endpoints/llm.py`: endpoint HTTP de generación de texto adaptado a `LLMService`.
 - `app/schemas/`: contratos de entrada y salida HTTP.
 - `app/domain/`: `Product`, `ProductDraft` y excepciones sin dependencia de FastAPI.
-- `app/services/`: casos de uso de producto y regla de recurso inexistente.
+- `app/services/`: casos de uso (`ProductService` y `LLMService`).
+- `app/services/ports/llm_provider.py`: contrato del proveedor LLM.
+- `app/integrations/llm/`: adaptadores HTTP para proveedores externos.
 - `app/repositories/product_repository.py`: protocolo de persistencia.
 - `app/repositories/in_memory_product_repository.py`: implementación demostrativa en memoria.
 - `app/core/dependencies.py`: punto para sustituir la implementación de repositorio.
-- `app/core/exception_handlers.py`: traducción de la excepción de dominio a la respuesta HTTP documentada.
+- `app/core/config.py`: configuración por entorno y secretos.
+- `app/core/exception_handlers.py`: traducción de excepciones de dominio a la respuesta HTTP documentada.
 - `tests/`: pruebas de contrato HTTP y de servicio.
+
+### Configurar el proveedor LLM
+
+1. Copia `.env.example` a `.env` en la raíz.
+2. Completa `LLM_API_KEY`, `LLM_BASE_URL` y `LLM_MODEL` con valores de un proveedor habilitado.
+3. Conserva el archivo `.env` solo en local: `.gitignore` lo excluye.
+
+El adaptador implementado habla el protocolo `POST {LLM_BASE_URL}/chat/completions` compatible con OpenAI Chat Completions. **No se fija un proveedor comercial concreto**: el host, la credencial y el modelo se configuran por entorno. Si el proveedor elegido utiliza otro protocolo, debe crearse otro adaptador que implemente `LLMProvider`, manteniendo el mismo contrato HTTP público.
+
+Para hosts externos `LLM_BASE_URL` requiere HTTPS; se permite HTTP solo en loopback para pruebas de proveedores locales.
+
+La API puede arrancar sin credenciales para utilizar el CRUD; la llamada LLM devuelve `503` mientras el proveedor no esté configurado correctamente.
+
+## Ejecutar y abrir la documentación
+
+```powershell
+fastapi dev
+```
+
+- Inicio: <http://127.0.0.1:8000/>
+- Swagger UI: <http://127.0.0.1:8000/docs>
+- ReDoc: <http://127.0.0.1:8000/redoc>
+- OpenAPI JSON: <http://127.0.0.1:8000/openapi.json>
+
+### Ejemplo de solicitud LLM
+
+`POST /api/v1/llm/ask`
+
+```json
+{
+  "prompt": "Resume qué problema resuelve una API REST.",
+  "system_prompt": "Responde en español y de forma concisa."
+}
+```
+
+Respuesta pública normalizada (el texto es ilustrativo):
+
+```json
+{
+  "response": "Una API REST permite ...",
+  "provider": "openai_compatible",
+  "model": "modelo-configurado",
+  "usage": {
+    "input_tokens": 18,
+    "output_tokens": 42
+  }
+}
+```
+
+Errores LLM conocidos: `422` para solicitud inválida, `502` para error o respuesta incompatible del proveedor, `503` para configuración ausente/límite temporal del proveedor y `504` para timeout. No se devuelve el cuerpo original de error del proveedor.
+
+## Pruebas
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+Secciones cubiertas:
+
+- Contratos Pydantic y schemas (unidad).
+- Servicio LLM con adaptador simulado (unidad).
+- Adaptador LLM y contratos HTTP (integración).
+- Router `/api/v1/products` y endpoints (integración).
+
+Las pruebas del adaptador usan `httpx.MockTransport`; no realizan llamadas a Internet. Para comprobar que una clave real y el modelo elegido funcionan, realiza después una prueba manual y controlada desde Swagger, teniendo en cuenta el consumo que facture el proveedor.
 
 ## Limitaciones y seguridad
 
-- El repositorio por defecto es en memoria: los datos desaparecen al reiniciar y no se comparten entre procesos/instancias. No se debe usar como persistencia real.
-- No se incluye autenticación, autorización, rate limiting, logging estructurado ni despliegue de producción.
-- El proveedor LLM está pendiente. Su credencial deberá permanecer en backend, fuera de Git y fuera de respuestas/logs.
-- Los errores controlados no revelan trazas ni secretos. No convertir errores imprevistos en mensajes técnicos públicos.
+- Los `POST` de productos crean un recurso nuevo cada vez, aunque los campos sean idénticos; no existe deduplicación por igualdad de campos.
+- El CRUD usa memoria: los productos desaparecen al reiniciar el proceso y no se comparten entre instancias.
+- El LLM implementado es de una sola interacción; no persiste historial y no incluye streaming.
+- No se hacen reintentos automáticos de generación, porque repetir un POST tras un timeout podría duplicar consumo.
+- La API key del proveedor permanece en el backend. No se acepta una API key en el JSON de los clientes.
+- La clave del proveedor no autentica a los consumidores de esta API. Autenticación, autorización, rate limiting y cuotas son tareas distintas que deberán abordarse antes de exponer el servicio.
+- No hay todavía persistencia durable, despliegue, CI ni observabilidad completa.
 
 ## Documentación del proyecto
 
@@ -183,6 +307,7 @@ Cada solicitud válida `POST /api/v1/products` crea un recurso nuevo. Si se env�
 - [Modularización con APIRouter](docs/api-routing.md)
 - [Creación repetida e idempotencia](docs/create-and-idempotency-semantics.md)
 - [Manifiesto de archivos de sección 7](docs/section-07-manifest.md)
+- [Integración LLM](docs/llm-integration.md)
 - [Reglas para agentes de programación](AGENTS.md)
 
 ## Roadmap por secciones
@@ -229,7 +354,7 @@ La compatibilidad exacta de las dependencias y las versiones se comprobará en l
 
 ## Estado y limitaciones
 
-La sección 6 consolida la separación de capas (HTTP, servicios, dominio y protocolo de repositorio con adaptador en memoria) e introduce el manejo desacoplado de errores HTTP (`404` documentado con `ErrorResponse`). Las rutas continúan en `app/main.py` y se modularizarán con `APIRouter` en la sección 7.
+La sección 6 consolida la separación de capas (HTTP, servicios, dominio y protocolo de repositorio con adaptador en memoria) e introduce el manejo desacoplado de errores HTTP (`404` documentado con `ErrorResponse`). La sección 7 modularizó las rutas con `APIRouter` bajo `app/api/` y la sección 8 incorpora la integración LLM mediante un adaptador configurable y API key del servidor.
 
 El almacenamiento actual en memoria es didáctico y no persiste: los productos se pierden al reiniciar la aplicación o cambiar de proceso. La API aún no está lista para producción; faltan autenticación, configuración segura, persistencia duradera, límites de consumo, observabilidad, pruebas de integración completas y despliegue.
 

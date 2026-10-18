@@ -91,22 +91,38 @@ Sección completada y verificada localmente. El endpoint demostrativo `POST /api
 - [x] F5 Se documenta `ErrorResponse` en OpenAPI.
 
 
-## Sección 7 — modularización con APIRouter (activa)
+## Sección 7 — modularización con APIRouter (completada)
 
-- [ ] G1 `app/main.py` solo compone la aplicación, maneja el registro de routers y los manejadores HTTP.
-- [ ] G2 `GET /` se conserva en un router general.
-- [ ] G3 El CRUD se mueve a `app/api/v1/endpoints/products.py`.
-- [ ] G4 `app/api/v1/router.py` agrega routers bajo `/api/v1`.
-- [ ] G5 Se conservan exactamente los métodos y paths públicos existentes.
-- [ ] G6 Se conservan respuestas 200, 201, 204, 404 y 422, esquemas y parámetros.
-- [ ] G7 Swagger/OpenAPI enumera cada endpoint solo una vez y mantiene el esquema `ErrorResponse` para los 404.
-- [ ] G8 Las pruebas existentes y `tests/test_product_create_semantics.py` pasan.
-- [ ] G9 Dos POST con payloads idénticos crean dos recursos con IDs distintos; este contrato está documentado, no se trata como deduplicación.
-- [ ] G10 `docs/api-routing.md`, `docs/create-and-idempotency-semantics.md` y referencias relacionadas están actualizadas.
-- [ ] G11 `git diff --check` pasa, el diff revisado y el commit/push manual queda realizado.
+- [x] G1 `app/main.py` solo compone la aplicación, maneja el registro de routers y los manejadores HTTP.
+- [x] G2 `GET /` se conserva en un router general.
+- [x] G3 El CRUD se mueve a `app/api/v1/endpoints/products.py`.
+- [x] G4 `app/api/v1/router.py` agrega routers bajo `/api/v1`.
+- [x] G5 Se conservan exactamente los métodos y paths públicos existentes.
+- [x] G6 Se conservan respuestas 200, 201, 204, 404 y 422, esquemas y parámetros.
+- [x] G7 Swagger/OpenAPI enumera cada endpoint solo una vez y mantiene el esquema `ErrorResponse` para los 404.
+- [x] G8 Las pruebas existentes y `tests/test_product_create_semantics.py` pasan.
+- [x] G9 Dos POST con payloads idénticos crean dos recursos con IDs distintos; este contrato está documentado, no se trata como deduplicación.
+- [x] G10 `docs/api-routing.md`, `docs/create-and-idempotency-semantics.md` y referencias relacionadas están actualizadas.
+- [x] G11 `git diff --check` pasa, el diff revisado y el commit/push manual queda realizado.
 
+## Sección 8 — integración LLM mediante adaptador (activa)
 
-## Objetivos globales pendientes
+- [x] H1 `/api/v1/llm/ask` aparece en OpenAPI y usa un contrato propio Pydantic.
+- [x] H2 Se valida que el prompt no esté vacío y que no exceda los límites definidos.
+- [x] H3 El cliente no puede enviar una `api_key` en el cuerpo del request.
+- [x] H4 `LLMService` depende del protocolo `LLMProvider`, no de HTTPX ni de FastAPI.
+- [x] H5 El adaptador usa HTTPX asíncrono y autenticación Bearer con una clave cargada desde el servidor.
+- [x] H6 URL base, modelo, timeout, tokens máximos y temperatura se configuran por entorno.
+- [x] H7 La clave se maneja como secreto; `.env` no se versiona y `.env.example` no contiene credenciales reales.
+- [x] H8 Se reutiliza y cierra `AsyncClient` mediante el lifespan de FastAPI.
+- [x] H9 No se exponen el body de error del proveedor, prompts ni API keys en errores de respuesta/logs.
+- [x] H10 Falta de configuración devuelve `503`; límite externo devuelve `503`; error externo/formato incompatible `502`; timeout `504`.
+- [x] H11 Se prueban éxito, validación, configuración ausente, timeout, rate limit, error externo y formato de respuesta sin llamadas reales.
+- [x] H12 Se conserva el contrato CRUD existente y la suite completa pasa localmente.
+- [x] H13 README, arquitectura, configuración y guía de integración están actualizados.
+- [ ] H14 `git diff --check` y revisión del diff pasan; el usuario realiza commit y push manual.
+
+## Objetivos globales
 
 - [ ] H1 Proveedor LLM desacoplado detrás de un adaptador, llamado mediante API key en el servidor.
 - [ ] H2 Autenticación de consumidores, límites de consumo y secretos gestionados correctamente.
@@ -115,6 +131,13 @@ Sección completada y verificada localmente. El endpoint demostrativo `POST /api
 - [ ] H5 Documentación de integración para Python, Java/Spring Boot y clientes web.
 - [ ] H6 Preparación para Docker, CI y despliegue.
 
-## Condición de cierre de la sección 7
+## Sección 9 — producción (pendiente)
 
-Marcar G1-G11 solo tras revisar cambios y confirmar funcionalidad de modularización y que no hayan errores. No declarar la API lista para producción en esta sección.
+- [ ] Autenticación/autorización de clientes, distinta de la API key del proveedor.
+- [ ] Rate limiting/cuotas, políticas de coste y límites por consumidor.
+- [ ] Pruebas de integración/reproducibilidad en el conjunto de dependencias del repositorio.
+- [ ] Logging, métricas y observabilidad sin secretos ni contenido sensible.
+- [ ] Decisión e implementación de persistencia durable si el caso de uso lo necesita.
+- [ ] Docker/CI/despliegue y comprobaciones operativas.
+
+No declarar la API lista para producción hasta revisar los controles que correspondan al entorno donde vaya a exponerse.
