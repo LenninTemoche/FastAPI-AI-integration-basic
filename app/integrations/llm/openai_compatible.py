@@ -99,9 +99,21 @@ class OpenAICompatibleChatProvider:
             data = response.json()
             choices = data["choices"]
             message = choices[0]["message"]
-            content = message["content"]
-            if not isinstance(content, str) or not content.strip():
-                raise ValueError("empty or non-text content")
+            
+            # Soporte dual: Chat clásico y Modelos de Razonamiento
+            # En modelos de razonamiento (DeepSeek R1, Nemotron Reasoning, etc.), si se
+            # agotan los tokens en la reflexión, 'content' puede venir nulo o vacío
+            # mientras que el texto útil reside en 'reasoning' o 'reasoning_content'.
+            raw_content = message.get("content")
+            if isinstance(raw_content, str) and raw_content.strip():
+                content = raw_content.strip()
+            else:
+                reasoning = message.get("reasoning") or message.get("reasoning_content")
+                if isinstance(reasoning, str) and reasoning.strip():
+                    content = reasoning.strip()
+                else:
+                    raise ValueError("empty or non-text content")
+
             response_model = data.get("model")
             output_model = response_model if isinstance(response_model, str) and response_model else model
             usage = data.get("usage") or {}
