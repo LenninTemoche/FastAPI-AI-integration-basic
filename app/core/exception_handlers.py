@@ -1,4 +1,4 @@
-"""Adaptadores que traducen excepciones de dominio/servicio a errores HTTP."""
+"""Adaptadores que traducen errores internos/de proveedor a respuestas HTTP públicas."""
 
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
@@ -11,6 +11,14 @@ from app.services.ports.llm_provider import (
     LLMProviderResponseError,
     LLMProviderTimeoutError,
     LLMProviderUnavailableError,
+)
+
+from app.services.ports.media_provider import (
+    MediaInputError,
+    MediaPayloadTooLargeError,
+    MediaProcessorUnavailableError,
+    MediaProcessingTimeoutError,
+    UnsupportedMediaTypeError,
 )
 
 def _json_error(status_code: int, detail: str) -> JSONResponse:
@@ -89,6 +97,30 @@ async def llm_response_exception_handler(
         "El proveedor LLM devolvió una respuesta no compatible.",
     )
 
+async def unsupported_media_type_handler(request: Request, exc: UnsupportedMediaTypeError) -> JSONResponse:
+    del request
+    return _json_error(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, str(exc))
+
+
+async def media_too_large_handler(request: Request, exc: MediaPayloadTooLargeError) -> JSONResponse:
+    del request
+    return _json_error(status.HTTP_413_CONTENT_TOO_LARGE, str(exc))
+
+
+async def media_input_error_handler(request: Request, exc: MediaInputError) -> JSONResponse:
+    del request
+    return _json_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+
+
+async def media_processor_unavailable_handler(request: Request, exc: MediaProcessorUnavailableError) -> JSONResponse:
+    del request, exc
+    return _json_error(status.HTTP_503_SERVICE_UNAVAILABLE, "El procesador multimedia no está disponible en el servidor.")
+
+
+async def media_processing_timeout_handler(request: Request, exc: MediaProcessingTimeoutError) -> JSONResponse:
+    del request, exc
+    return _json_error(status.HTTP_504_GATEWAY_TIMEOUT, "El procesamiento multimedia excedió el tiempo máximo configurado.")
+
 
 def register_exception_handlers(app: FastAPI) -> None:
     """Registra las conversiones entre errores internos y contratos HTTP."""
@@ -115,4 +147,24 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(
         LLMProviderResponseError,
         llm_response_exception_handler,
+    )
+    app.add_exception_handler(
+        UnsupportedMediaTypeError,
+        unsupported_media_type_handler,
+    )
+    app.add_exception_handler(
+        MediaPayloadTooLargeError,
+        media_too_large_handler,
+    )
+    app.add_exception_handler(
+        MediaInputError,
+        media_input_error_handler,
+    )
+    app.add_exception_handler(
+        MediaProcessorUnavailableError,
+        media_processor_unavailable_handler,
+    )
+    app.add_exception_handler(
+        MediaProcessingTimeoutError,
+        media_processing_timeout_handler,
     )

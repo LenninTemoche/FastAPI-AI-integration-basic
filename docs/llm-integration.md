@@ -2,7 +2,9 @@
 
 ## Objetivo
 
-Exponer una operación de generación de texto reutilizable por HTTP/JSON sin acoplar los endpoints ni el caso de uso a un proveedor comercial específico. La ruta recibe un contrato propio y devuelve una respuesta normalizada; el adaptador traduce ese contrato al protocolo HTTP del proveedor.
+Exponer una operación de **generación de texto** reutilizable por HTTP/JSON sin acoplar los endpoints ni el caso de uso a un proveedor comercial específico. La ruta recibe un contrato propio y devuelve una respuesta normalizada; el adaptador traduce ese contrato al protocolo HTTP del proveedor.
+
+> **Nota:** Esta sección cubre solo generación de texto (`POST /api/v1/llm/ask`). Para **transcripción de audio (Whisper)** y **análisis de video** (visión por fotogramas), consulta [`docs/multimodal-media.md`](docs/multimodal-media.md). Esas capacidades usan rutas separadas bajo `/api/v1/media/` y modelos independientes del modelo de chat.
 
 ## Decisión de arquitectura
 
@@ -43,7 +45,7 @@ Variables disponibles:
 | `LLM_PROVIDER` | Sí | En esta entrega debe ser `openai_compatible`. |
 | `LLM_API_KEY` | Sí | Credencial de servidor, tratada como secreto. |
 | `LLM_BASE_URL` | Sí | URL base, normalmente termina en `/v1`; se añade `/chat/completions`. |
-| `LLM_MODEL` | Sí | Identificador exacto de un modelo habilitado en la cuenta/proveedor. |
+| `LLM_MODEL` | Sí | Identificador exacto de un modelo habilitado en la cuenta/proveedor. Usado solo para generación de texto y análisis visual; **no** para Whisper (usa `MEDIA_TRANSCRIPTION_MODEL`). |
 | `LLM_TIMEOUT_SECONDS` | No | Timeout total; valor predeterminado `30`, rango permitido mayor que 0 y hasta 120. |
 | `LLM_MAX_TOKENS` | No | Límite configurado de generación; predeterminado `512`, rango de 1 a 4096. |
 | `LLM_TEMPERATURE` | No | Temperatura configurada; predeterminado `0.2`, rango de 0 a 2. |
@@ -128,3 +130,7 @@ python -m unittest discover -s tests -v
 ## Limitación importante
 
 La autenticación de la API para sus propios consumidores es distinta de `LLM_API_KEY`. Esta entrega no protege el endpoint LLM frente al uso público ni implementa cuota por usuario; no se debe exponer a Internet sin controles de acceso y consumo.
+
+## Documentación relacionada
+
+- [`docs/multimodal-media.md`](docs/multimodal-media.md): transcripción de audio (Whisper) y análisis de video (visión por fotogramas), con modelos y endpoints separados de la generación de texto.

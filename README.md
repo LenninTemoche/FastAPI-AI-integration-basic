@@ -2,7 +2,7 @@
 
 API REST reutilizable con FastAPI, orientada a integraciones con aplicaciones web y móviles mediante HTTP/JSON, servicios Java/Python, proyectos de análisis de datos, modelos de Machine Learning y proveedores de IA generativa.
 
-> **Estado:** sección 8 en validación local. Se incorpora una ruta de generación LLM detrás de un puerto y un adaptador configurable. El CRUD sigue usando almacenamiento en memoria. La API no está lista para producción hasta completar la revisión de seguridad y operación.
+> **Estado:** extensión multimodal de la sección 8 preparada para validación local: generación de texto, transcripción de audio y análisis de video mediante fotogramas. El CRUD sigue usando almacenamiento en memoria. La API no está lista para producción hasta completar la revisión de seguridad y operación.
 
 ## Objetivo
 
@@ -16,10 +16,13 @@ Construir una API modular y documentada que pueda integrarse en distintos proyec
 - Capa de repositorio que permitan cambiar el almacenamiento, para no acoplar la lógica de negocio a una tecnología concreta.
 - Separación inicial entre routers, servicios, dominio y protocolo de persistencia.
 - Integración LLM con un adaptador HTTPX asíncrono que usa API key del lado servidor.
+- Transcripción de audio mediante carga multipart y un modelo configurado por separado.
+- Análisis de video mediante muestreo de fotogramas y transcripción opcional de la pista de audio.
 - Contrato de respuesta LLM propio, independiente del JSON original del proveedor.
 - Configuración del proveedor mediante variables de entorno.
 - Pruebas automatizadas que simulan el proveedor; la suite no necesita una clave real ni incurre en costes.
 - Documentación dirigida a desarrolladores y agentes de programación.
+
 
 
 La arquitectura es un **monolito modular**: comparte un proceso de despliegue en esta fase, pero separa responsabilidades para que los adaptadores se puedan sustituir sin reescribir todos los endpoints.
@@ -33,12 +36,20 @@ flowchart TD
     MAIN --> V1[app/api/v1/router.py<br/>prefijo /api/v1]
     V1 --> PROD[app/api/v1/endpoints/products.py<br/>adaptador HTTP del CRUD]
     V1 --> LLM_EP[app/api/v1/endpoints/llm.py<br/>adaptador HTTP del LLM]
+    V1 --> MEDIA[app/api/v1/endpoints/media.py<br/>endpoints de audio y video]
     PROD --> SVC[app/services/product_service.py<br/>ProductService<br/>Casos de uso]
     LLM_EP --> LLM_SVC[app/services/llm_service.py<br/>LLMService<br/>Caso de uso]
+    MEDIA --> AUDIO_SVC[app/services/media_service.py<br/>AudioTranscriptionService]
+    MEDIA --> VIDEO_SVC[app/services/media_service.py<br/>VideoAnalysisService]
     SVC --> REPO_PROTO[app/repositories/product_repository.py<br/>ProductRepository<br/>Protocolo]
     REPO_PROTO --> REPO_IMPL[app/repositories/in_memory_product_repository.py<br/>InMemoryProductRepository<br/>Adaptador temporal]
     LLM_SVC --> LLM_PORT[app/services/ports/llm_provider.py<br/>Puerto LLMProvider<br/>(sin dependencia HTTP)]
     LLM_PORT --> LLM_ADAPT[app/integrations/llm/openai_compatible.py<br/>Adaptador OpenAI-compatible]
+    AUDIO_SVC --> AUDIO_PORT[app/services/ports/media_provider.py<br/>AudioTranscriptionProvider]
+    AUDIO_PORT --> AUDIO_ADAPT[app/integrations/llm/openai_compatible_audio.py<br/>/audio/transcriptions (Whisper)]
+    VIDEO_SVC --> VIDEO_PROC[app/integrations/media/ffmpeg_video_processor.py<br/>FFmpeg frames + audio]
+    VIDEO_SVC --> VISION_PORT[app/services/ports/media_provider.py<br/>VideoVisionProvider]
+    VISION_PORT --> VISION_ADAPT[app/integrations/llm/openai_compatible_vision.py<br/>/chat/completions (frames)]
 
     subgraph DOM["app/domain/"]
         MODELS["models.py<br/>Product / ProductDraft<br/>Sin dependencia HTTP"]
@@ -63,14 +74,23 @@ flowchart TD
     LLM_SVC --> CONF
     LLM_ADAPT --> CONF
 
+    MEDIA --> DEPS
+    AUDIO_SVC --> CONF
+    VIDEO_SVC --> CONF
+    AUDIO_PORT --> CONF
+    VISION_PORT --> CONF
+
     style CLIENT fill:#1a202c,stroke:#4a5568,color:#f1f5f9
     style MAIN fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style ROOT fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style V1 fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style PROD fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style LLM_EP fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style MEDIA fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style LLM_SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style AUDIO_SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style VIDEO_SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style REPO_PROTO fill:#4a5568,stroke:#2d3748,color:#f1f5f9
     style REPO_IMPL fill:#4a5568,stroke:#2d3748,color:#f1f5f9
     style MODELS fill:#4a5568,stroke:#2d3748,color:#f1f5f9
@@ -81,6 +101,11 @@ flowchart TD
     style LLM_ADAPT fill:#4a5568,stroke:#2d3748,color:#f1f5f9
     style LLM_ERR fill:#4a5568,stroke:#2d3748,color:#f1f5f9
     style CONF fill:#4a5568,stroke:#2d3748,color:#f1f5f9
+    style AUDIO_PORT fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style AUDIO_ADAPT fill:#4a5568,stroke:#2d3748,color:#f1f5f9
+    style VIDEO_PROC fill:#4a5568,stroke:#2d3748,color:#f1f5f9
+    style VISION_PORT fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style VISION_ADAPT fill:#4a5568,stroke:#2d3748,color:#f1f5f9
 ```
 
 ## Arquitectura resumida
@@ -102,7 +127,11 @@ Repositorio en memoria    Adaptador Chat Completions compatible
                              |
                              v
                         Proveedor externo
+
+Media endpoints --> MediaService --> AudioTranscriber / VideoVisionProvider
+                              \--> FFmpegVideoProcessor (adaptador local)
 ```
+
 
 
 - `app/main.py`: composición de la aplicación y ciclo de vida de recursos.
@@ -111,6 +140,11 @@ Repositorio en memoria    Adaptador Chat Completions compatible
 - `app/domain/`: entidades y errores de dominio sin dependencia de FastAPI.
 - `app/services/`: casos de uso (`ProductService` y `LLMService`).
 - `app/services/ports/llm_provider.py`: contrato del proveedor LLM.
+- `app/services/ports/media_provider.py`: contratos de transcripción, visión y procesamiento multimedia.
+- `app/services/media_service.py`: casos de uso de transcripción y análisis de video.
+- `app/integrations/llm/openai_compatible_audio.py`: adaptador de audio/transcripción.
+- `app/integrations/llm/openai_compatible_vision.py`: adaptador de visión por fotogramas.
+- `app/integrations/media/ffmpeg_video_processor.py`: extrae fotogramas/audio de video con límites configurados.
 - `app/integrations/llm/`: adaptadores HTTP para proveedores externos.
 - `app/repositories/`: contrato e implementación temporal de persistencia del CRUD.
 - `app/core/config.py`: configuración por entorno y secretos.
@@ -118,7 +152,6 @@ Repositorio en memoria    Adaptador Chat Completions compatible
 - `tests/`: pruebas de servicios, contratos HTTP y adaptador externo simulado.
 
 Detalles: [`docs/architecture.md`](docs/architecture.md).
-
 
 ## Casos de uso previstos
 
@@ -182,6 +215,8 @@ Con el servidor activo, abre:
 | `PUT` | `/api/v1/products/{product_id}` | `200` | Reemplazar campos editables y conservar el ID. |
 | `DELETE` | `/api/v1/products/{product_id}` | `204` | Eliminar producto sin cuerpo de respuesta. |
 | `POST` | `/api/v1/llm/ask` | `200` | Solicitar una generación de texto al proveedor configurado. |
+| `POST` | `/api/v1/media/transcriptions` | `200` | Transcribir un archivo de audio subido. |
+| `POST` | `/api/v1/media/videos/analyze` | `200` | Analizar fotogramas y, si se solicita/configura, la transcripción de audio de un video subido. |
 
 
 Las rutas versionadas se agrupan mediante `app/api/v1/router.py`. Las operaciones HTTP viven en `app/api/v1/endpoints/products.py`; los casos de uso están en `app/services/product_service.py`, el dominio en `app/domain/` y la persistencia detrás de `ProductRepository`.
@@ -207,15 +242,18 @@ Cada solicitud válida `POST /api/v1/products` crea un recurso nuevo. Si se env�
 - `app/api/v1/router.py`: router agregador con prefijo `/api/v1`.
 - `app/api/v1/endpoints/products.py`: endpoints HTTP del CRUD adaptados a `ProductService`.
 - `app/api/v1/endpoints/llm.py`: endpoint HTTP de generación de texto adaptado a `LLMService`.
+- `app/api/v1/endpoints/media.py`: endpoints HTTP de transcripción de audio y análisis de video.
 - `app/schemas/`: contratos de entrada y salida HTTP.
 - `app/domain/`: `Product`, `ProductDraft` y excepciones sin dependencia de FastAPI.
-- `app/services/`: casos de uso (`ProductService` y `LLMService`).
+- `app/services/`: casos de uso (`ProductService`, `LLMService`, `AudioTranscriptionService`, `VideoAnalysisService`).
 - `app/services/ports/llm_provider.py`: contrato del proveedor LLM.
-- `app/integrations/llm/`: adaptadores HTTP para proveedores externos.
+- `app/services/ports/media_provider.py`: contratos de transcripción, visión y procesamiento multimedia.
+- `app/integrations/llm/`: adaptadores HTTP para proveedores externos (chat, audio, visión).
+- `app/integrations/media/`: procesamiento local de medios (FFmpeg para video).
 - `app/repositories/product_repository.py`: protocolo de persistencia.
 - `app/repositories/in_memory_product_repository.py`: implementación demostrativa en memoria.
 - `app/core/dependencies.py`: punto para sustituir la implementación de repositorio.
-- `app/core/config.py`: configuración por entorno y secretos.
+- `app/core/config.py`: configuración por entorno y secretos (incluye `MEDIA_TRANSCRIPTION_MODEL` y límites de medios).
 - `app/core/exception_handlers.py`: traducción de excepciones de dominio a la respuesta HTTP documentada.
 - `tests/`: pruebas de contrato HTTP y de servicio.
 
@@ -225,11 +263,39 @@ Cada solicitud válida `POST /api/v1/products` crea un recurso nuevo. Si se env�
 2. Completa `LLM_API_KEY`, `LLM_BASE_URL` y `LLM_MODEL` con valores de un proveedor habilitado.
 3. Conserva el archivo `.env` solo en local: `.gitignore` lo excluye.
 
-El adaptador implementado habla el protocolo `POST {LLM_BASE_URL}/chat/completions` compatible con OpenAI Chat Completions. **No se fija un proveedor comercial concreto**: el host, la credencial y el modelo se configuran por entorno. Si el proveedor elegido utiliza otro protocolo, debe crearse otro adaptador que implemente `LLMProvider`, manteniendo el mismo contrato HTTP público.
+El adaptador implementado habla el protocolo `POST {LLM_BASE_URL}/chat/completions` compatible con OpenAI Chat Completions. **No se fija un proveedor comercial concreto**: el host, la credencial y el modelo se configuran por entorno.
+
+Si el proveedor elegido utiliza otro protocolo, debe crearse otro adaptador que implemente `LLMProvider`, manteniendo el mismo contrato HTTP público.
 
 Para hosts externos `LLM_BASE_URL` requiere HTTPS; se permite HTTP solo en loopback para pruebas de proveedores locales.
 
 La API puede arrancar sin credenciales para utilizar el CRUD; la llamada LLM devuelve `503` mientras el proveedor no esté configurado correctamente.
+
+Guía completa: [`docs/llm-integration.md`](docs/llm-integration.md).
+
+### Configurar audio y video (multimodal)
+
+Para transcripción de audio (Whisper), añade a `.env`:
+
+```ini
+MEDIA_TRANSCRIPTION_MODEL=whisper-large-v3
+# o: MEDIA_TRANSCRIPTION_MODEL=whisper-large-v3-turbo
+MEDIA_MAX_AUDIO_MB=25
+```
+
+Para análisis de video, ajusta los límites según necesidad:
+
+```ini
+MEDIA_MAX_VIDEO_MB=50
+MEDIA_VIDEO_MAX_DURATION_SECONDS=120
+MEDIA_VIDEO_MAX_FRAMES=8
+MEDIA_VIDEO_FRAME_INTERVAL_SECONDS=5
+MEDIA_PROCESSING_TIMEOUT_SECONDS=60
+```
+
+**Importante:** `MEDIA_TRANSCRIPTION_MODEL` es independiente de `LLM_MODEL`. Whisper usa el endpoint `/audio/transcriptions`, no `/chat/completions`. Usa `POST /api/v1/media/transcriptions` para audio y `POST /api/v1/media/videos/analyze` para video.
+
+Guía completa: [`docs/multimodal-media.md`](docs/multimodal-media.md).
 
 ## Ejecutar y abrir la documentación
 
@@ -308,6 +374,7 @@ Las pruebas del adaptador usan `httpx.MockTransport`; no realizan llamadas a Int
 - [Creación repetida e idempotencia](docs/create-and-idempotency-semantics.md)
 - [Manifiesto de archivos de sección 7](docs/section-07-manifest.md)
 - [Integración LLM](docs/llm-integration.md)
+- [Audio y video (multimodal)](docs/multimodal-media.md)
 - [Reglas para agentes de programación](AGENTS.md)
 
 ## Roadmap por secciones
@@ -357,6 +424,10 @@ La compatibilidad exacta de las dependencias y las versiones se comprobará en l
 La sección 6 consolida la separación de capas (HTTP, servicios, dominio y protocolo de repositorio con adaptador en memoria) e introduce el manejo desacoplado de errores HTTP (`404` documentado con `ErrorResponse`). La sección 7 modularizó las rutas con `APIRouter` bajo `app/api/` y la sección 8 incorpora la integración LLM mediante un adaptador configurable y API key del servidor.
 
 El almacenamiento actual en memoria es didáctico y no persiste: los productos se pierden al reiniciar la aplicación o cambiar de proceso. La API aún no está lista para producción; faltan autenticación, configuración segura, persistencia duradera, límites de consumo, observabilidad, pruebas de integración completas y despliegue.
+
+El análisis de video se basa en fotogramas muestreados (no en comprensión nativa continua del archivo completo) y requiere un modelo compatible con visión. Ver Guía multimodal: [`docs/multimodal-media.md`](docs/multimodal-media.md)
+
+
 
 ## Referencias oficiales
 

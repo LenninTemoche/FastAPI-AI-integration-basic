@@ -72,67 +72,6 @@ flowchart TD
     style SEC fill:#4a5568,stroke:#2d3748,color:#f1f5f9
 ```
 
-**Arquitectura implementada (secciones 7 y 8):**
-
-```mermaid
-flowchart TD
-    CLIENT[Clients HTTP/JSON<br/>Web · móvil · Python · Java · ML] --> MAIN[app/main.py<br/>Composición FastAPI<br/>sin rutas CRUD]
-    MAIN --> ROOT[app/api/root.py<br/>GET /]
-    MAIN --> V1[app/api/v1/router.py<br/>prefijo /api/v1]
-    V1 --> PROD[app/api/v1/endpoints/products.py<br/>adaptador HTTP del CRUD]
-    V1 --> LLM_EP[app/api/v1/endpoints/llm.py<br/>adaptador HTTP del LLM]
-    PROD --> SVC[app/services/product_service.py<br/>ProductService<br/>Casos de uso]
-    LLM_EP --> LLM_SVC[app/services/llm_service.py<br/>LLMService<br/>Caso de uso]
-    SVC --> REPO_PROTO[app/repositories/product_repository.py<br/>Protocolo ProductRepository]
-    REPO_PROTO --> REPO_IMPL[app/repositories/in_memory_product_repository.py<br/>Adaptador temporal]
-    LLM_SVC --> LLM_PORT[app/services/ports/llm_provider.py<br/>Puerto LLMProvider]
-    LLM_PORT --> LLM_ADAPT[app/integrations/llm/openai_compatible.py<br/>Adaptador OpenAI-compatible]
-    LLM_ADAPT --> EXT[Proveedor externo<br/>configurado por entorno]
-
-    subgraph DOM["app/domain/"]
-        MODELS["models.py<br/>Product · ProductDraft"]
-        EXC["exceptions.py<br/>ProductNotFoundError<br/>(sin dependencia HTTP)"]
-    end
-
-    subgraph CORE["app/core/"]
-        DEPS["dependencies.py<br/>composición servicio + repositorio"]
-        ERR["exception_handlers.py<br/>ProductNotFoundError → HTTP 404<br/>+ ErrorResponse"]
-        LLM_ERR["exception_handlers.py<br/>errores LLM → HTTP 502/503/504"]
-        CONF["config.py<br/>configuración por entorno + SecretStr"]
-    end
-
-    PROD --> DEPS
-    SVC --> MODELS
-    SVC --> EXC
-    EXC --> ERR
-    REPO_IMPL --> MODELS
-    REPO_IMPL --> EXC
-
-    LLM_EP --> DEPS
-    LLM_SVC --> CONF
-    LLM_ADAPT --> CONF
-
-    style CLIENT fill:#1a202c,stroke:#0d1117,color:#f1f5f9
-    style MAIN fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style ROOT fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style V1 fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style PROD fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style LLM_EP fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style LLM_SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style REPO_PROTO fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style REPO_IMPL fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style LLM_PORT fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style LLM_ADAPT fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style EXT fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style MODELS fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style EXC fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style DEPS fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style ERR fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style LLM_ERR fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style CONF fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-```
-
 ### Responsabilidades y dirección de dependencias
 
 | Capa                           | Responsabilidad                                                                                          | No debe depender de                        |
@@ -147,21 +86,28 @@ flowchart TD
 | `core/config.py`             | Cargar y validar variables de entorno, tratando secretos como `SecretStr`                              | Reglas de negocio                          |
 | `core/exception_handlers.py` | Traducir errores internos a respuestas HTTP conocidas sin filtrar contenido externo                      | Implementación concreta de proveedores    |
 | `integrations/llm/`          | Adaptadores concretos para APIs externas                                                                 | Contratos HTTP públicos del proyecto      |
+| `integrations/media/`        | Adaptadores multimedia (audio, video)                                                                    | Contratos HTTP públicos del proyecto      |
+| `services/media_service.py`  | Casos de uso de transcripción y análisis de video                                                        | FastAPI, HTTPX                            |
+| `services/ports/media_provider.py` | Puertos de transcripción, visión y procesamiento de medios                                       | FastAPI, HTTPX, FFmpeg                    |
 
 ## Cómo se conectan los routers
 
 `app/main.py` incluye `app.api.root.router` para `GET /` y
 `app/api.v1.router.router` para la API versionada. El router v1 aplica `/api/v1`
-y agrega los routers de los recursos productos (`/products`) y LLM (`/llm`).
-Esta composición conserva los paths publicados.
+y agrega los routers de los recursos productos (`/products`), LLM (`/llm`)
+y medios (`/media`). Esta composición conserva los paths publicados.
 
 - `app/api/root.py`: define `GET /` con una respuesta de estado básica.
 - `app/api/v1/router.py`: router agregador con prefijo `/api/v1` que incluye
-  `app/api/v1/endpoints/products.py` y `app/api/v1/endpoints/llm.py`.
+  `app/api/v1/endpoints/products.py`, `app/api/v1/endpoints/llm.py` y
+  `app/api/v1/endpoints/media.py`.
 - `app/api/v1/endpoints/products.py`: contiene las operaciones CRUD HTTP
   adaptadas a `ProductService`.
 - `app/api/v1/endpoints/llm.py`: contiene la operación HTTP para generación
   de texto, adaptada a `LLMService`.
+- `app/api/v1/endpoints/media.py`: contiene los endpoints HTTP para
+  transcripción de audio y análisis de video, adaptados a
+  `AudioTranscriptionService` y `VideoAnalysisService`.
 
 Para añadir un recurso futuro, se creará otro módulo bajo
 `app/api/v1/endpoints/` y se incluirá su router en `app/api/v1/router.py`. Evitar
@@ -372,13 +318,21 @@ flowchart TD
     MAIN --> V1[app/api/v1/router.py<br/>prefijo /api/v1]
     V1 --> PROD[app/api/v1/endpoints/products.py<br/>adaptador HTTP del CRUD]
     V1 --> LLM_EP[app/api/v1/endpoints/llm.py<br/>adaptador HTTP del LLM]
+    V1 --> MEDIA[app/api/v1/endpoints/media.py<br/>endpoints de audio y video]
     PROD --> SVC[app/services/product_service.py<br/>ProductService<br/>Casos de uso]
     LLM_EP --> LLM_SVC[app/services/llm_service.py<br/>LLMService<br/>Caso de uso]
+    MEDIA --> AUDIO_SVC[app/services/media_service.py<br/>AudioTranscriptionService]
+    MEDIA --> VIDEO_SVC[app/services/media_service.py<br/>VideoAnalysisService]
     SVC --> REPO_PROTO[app/repositories/product_repository.py<br/>Protocolo ProductRepository]
     REPO_PROTO --> REPO_IMPL[app/repositories/in_memory_product_repository.py<br/>Adaptador temporal]
     LLM_SVC --> LLM_PORT[app/services/ports/llm_provider.py<br/>Puerto LLMProvider]
     LLM_PORT --> LLM_ADAPT[app/integrations/llm/openai_compatible.py<br/>Adaptador OpenAI-compatible]
     LLM_ADAPT --> EXT[Proveedor externo<br/>configurado por entorno]
+    AUDIO_SVC --> AUDIO_PORT[app/services/ports/media_provider.py<br/>AudioTranscriptionProvider]
+    AUDIO_PORT --> AUDIO_ADAPT[app/integrations/llm/openai_compatible_audio.py<br/>/audio/transcriptions (Whisper)]
+    VIDEO_SVC --> VIDEO_PROC[app/integrations/media/ffmpeg_video_processor.py<br/>FFmpeg frames + audio]
+    VIDEO_SVC --> VISION_PORT[app/services/ports/media_provider.py<br/>VideoVisionProvider]
+    VISION_PORT --> VISION_ADAPT[app/integrations/llm/openai_compatible_vision.py<br/>/chat/completions (frames)]
 
     subgraph DOM["app/domain/"]
         MODELS["models.py<br/>Product · ProductDraft"]
@@ -404,14 +358,23 @@ flowchart TD
     LLM_SVC --> LLM_PORT
     LLM_ADAPT --> CONF
 
+    MEDIA --> DEPS
+    AUDIO_SVC --> CONF
+    VIDEO_SVC --> CONF
+    AUDIO_PORT --> CONF
+    VISION_PORT --> CONF
+
     style CLIENT fill:#1a202c,stroke:#0d1117,color:#f1f5f9
     style MAIN fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style ROOT fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style V1 fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style PROD fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style LLM_EP fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style MEDIA fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style LLM_SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style AUDIO_SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style VIDEO_SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style REPO_PROTO fill:#4a5568,stroke:#2d3748,color:#f1f5f9
     style REPO_IMPL fill:#4a5568,stroke:#2d3748,color:#f1f5f9
     style LLM_PORT fill:#2d3748,stroke:#1a202c,color:#f1f5f9
@@ -423,6 +386,11 @@ flowchart TD
     style ERR fill:#4a5568,stroke:#2d3748,color:#f1f5f9
     style LLM_ERR fill:#4a5568,stroke:#2d3748,color:#f1f5f9
     style CONF fill:#4a5568,stroke:#2d3748,color:#f1f5f9
+    style AUDIO_PORT fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style AUDIO_ADAPT fill:#4a5568,stroke:#2d3748,color:#f1f5f9
+    style VIDEO_PROC fill:#4a5568,stroke:#2d3748,color:#f1f5f9
+    style VISION_PORT fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style VISION_ADAPT fill:#4a5568,stroke:#2d3748,color:#f1f5f9
 ```
 
 ### Responsabilidades y dirección de dependencias
@@ -439,21 +407,28 @@ flowchart TD
 | `core/config.py`             | Cargar y validar variables de entorno, tratando secretos como `SecretStr`                              | Reglas de negocio                          |
 | `core/exception_handlers.py` | Traducir errores internos a respuestas HTTP conocidas sin filtrar contenido externo                      | Implementación concreta de proveedores    |
 | `integrations/llm/`          | Adaptadores concretos para APIs externas                                                                 | Contratos HTTP públicos del proyecto      |
+| `integrations/media/`        | Adaptadores multimedia (audio, video)                                                                    | Contratos HTTP públicos del proyecto      |
+| `services/media_service.py`  | Casos de uso de transcripción y análisis de video                                                        | FastAPI, HTTPX                            |
+| `services/ports/media_provider.py` | Puertos de transcripción, visión y procesamiento de medios                                       | FastAPI, HTTPX, FFmpeg                    |
 
 ### Cómo se conectan los routers
 
 `app/main.py` incluye `app.api.root.router` para `GET /` y
 `app/api.v1.router.router` para la API versionada. El router v1 aplica `/api/v1`
-y agrega los routers de los recursos productos (`/products`) y LLM (`/llm`).
-Esta composición conserva los paths publicados.
+y agrega los routers de los recursos productos (`/products`), LLM (`/llm`)
+y medios (`/media`). Esta composición conserva los paths publicados.
 
 - `app/api/root.py`: define `GET /` con una respuesta de estado básica.
 - `app/api/v1/router.py`: router agregador con prefijo `/api/v1` que incluye
-  `app/api/v1/endpoints/products.py` y `app/api/v1/endpoints/llm.py`.
+  `app/api/v1/endpoints/products.py`, `app/api/v1/endpoints/llm.py` y
+  `app/api/v1/endpoints/media.py`.
 - `app/api/v1/endpoints/products.py`: contiene las operaciones CRUD HTTP
   adaptadas a `ProductService`.
 - `app/api/v1/endpoints/llm.py`: contiene la operación HTTP para generación
   de texto, adaptada a `LLMService`.
+- `app/api/v1/endpoints/media.py`: contiene los endpoints HTTP para
+  transcripción de audio y análisis de video, adaptados a
+  `AudioTranscriptionService` y `VideoAnalysisService`.
 
 Para añadir un recurso futuro, se creará otro módulo bajo
 `app/api/v1/endpoints/` y se incluirá su router en `app/api/v1/router.py`. Evitar
@@ -484,3 +459,14 @@ HTTP no tratan excepciones de dominio directamente; las dejan al manejador regis
 - `app/api/v1/endpoints/llm.py` adapta HTTP/JSON a `LLMService` mediante `Depends(get_llm_service)`.
 
 El servicio no conoce detalles de persistencia y el endpoint solo interactúa con el servicio, lo que facilita el intercambio de mecanismos de almacenamiento.
+
+## Extensión multimodal (sección 8 refinada)
+
+- `app/api/v1/endpoints/media.py` expone contratos HTTP para transcripción y análisis de video.
+- `app/services/media_service.py` orquesta transcripción/análisis sin importar FastAPI ni HTTPX.
+- `app/services/ports/media_provider.py` define los puertos de transcripción, visión y procesamiento de medios.
+- `app/integrations/llm/openai_compatible_audio.py` implementa el protocolo de transcripción con multipart.
+- `app/integrations/llm/openai_compatible_vision.py` envía fotogramas como imágenes a un modelo de visión compatible.
+- `app/integrations/media/ffmpeg_video_processor.py` extrae fotogramas y una pista de audio opcional mediante FFmpeg.
+
+El video no se sube como video nativo al endpoint de chat: se toma una muestra acotada de frames y, si se habilita, se transcribe por separado su audio. El archivo `openai_compatible.py` existente no se reemplaza en este paquete incremental para preservar el soporte Chat + Reasoning añadido en el repositorio.

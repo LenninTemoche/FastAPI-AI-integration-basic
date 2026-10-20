@@ -1,4 +1,4 @@
-"""Configuración externa de la aplicación.
+"""Configuración externa validada para LLM y procesamiento multimodal.
 
 Los secretos se cargan desde variables de entorno o un archivo .env local.
 Este módulo nunca imprime ni serializa la API key.
@@ -28,6 +28,20 @@ class Settings(BaseSettings):
     llm_timeout_seconds: Annotated[float, Field(gt=0, le=120)] = 30.0
     llm_max_tokens: Annotated[int, Field(ge=1, le=4096)] = 512
     llm_temperature: Annotated[float, Field(ge=0, le=2)] = 0.2
+
+    # Audio/transcripción: se usa un modelo específico y no se presupone que
+    # el modelo de chat acepte archivos de audio.
+    media_transcription_model: Annotated[
+        str | None, Field(min_length=1, max_length=200)
+    ] = None
+    media_max_audio_mb: Annotated[int, Field(ge=1, le=100)] = 25
+
+    # Video: límites de entrada, duración procesada, muestreo y tiempo de FFmpeg.
+    media_max_video_mb: Annotated[int, Field(ge=1, le=200)] = 50
+    media_video_max_duration_seconds: Annotated[int, Field(ge=1, le=600)] = 120
+    media_video_max_frames: Annotated[int, Field(ge=1, le=16)] = 8
+    media_video_frame_interval_seconds: Annotated[int, Field(ge=1, le=30)] = 5
+    media_processing_timeout_seconds: Annotated[float, Field(gt=0, le=180)] = 60.0
 
     @model_validator(mode="after")
     def require_secure_external_llm_url(self) -> "Settings":

@@ -120,16 +120,30 @@ Sección completada y verificada localmente. El endpoint demostrativo `POST /api
 - [x] H11 Se prueban éxito, validación, configuración ausente, timeout, rate limit, error externo y formato de respuesta sin llamadas reales.
 - [x] H12 Se conserva el contrato CRUD existente y la suite completa pasa localmente.
 - [x] H13 README, arquitectura, configuración y guía de integración están actualizados.
-- [ ] H14 `git diff --check` y revisión del diff pasan; el usuario realiza commit y push manual.
+- [x] H14 `git diff --check` y revisión del diff pasan; el usuario realiza commit y push manual.
+
+## Extensión multimodal de la sección 8
+
+- [ ] H15. `POST /api/v1/media/transcriptions` está documentado en OpenAPI y devuelve texto normalizado.
+- [ ] H16. Audio usa `MEDIA_TRANSCRIPTION_MODEL`, clave de servidor y endpoint multipart dedicado.
+- [ ] H17. Tipos de archivo, tamaños y campos Form se validan con respuestas 413/415/422 controladas.
+- [ ] H18. `POST /api/v1/media/videos/analyze` extrae un máximo configurado de fotogramas y acota duración/tiempo de FFmpeg.
+- [ ] H19. Transcripción de video es opcional y su estado se devuelve explícitamente.
+- [ ] H20. La ruta de video usa un adaptador de visión separado; no exige modificar `/api/v1/llm/ask`.
+- [ ] H21. Tests de API, servicios y adaptadores usan mocks y no requieren API key real.
+- [x] H22. El archivo existente `app/integrations/llm/openai_compatible.py` y el fallback Chat/Reasoning se preservan.
+- [ ] H23. Las pruebas se ejecutan localmente con Python 3.13 y las dependencias fijadas del repositorio.
+- [ ] H24. Se completa una llamada manual controlada con un modelo que admita la capacidad seleccionada.
+
 
 ## Objetivos globales
 
-- [ ] H1 Proveedor LLM desacoplado detrás de un adaptador, llamado mediante API key en el servidor.
-- [ ] H2 Autenticación de consumidores, límites de consumo y secretos gestionados correctamente.
-- [ ] H3 Persistencia durable y configuración por entorno.
-- [ ] H4 Pruebas de integración para llamadas externas, timeout y errores del proveedor.
-- [ ] H5 Documentación de integración para Python, Java/Spring Boot y clientes web.
-- [ ] H6 Preparación para Docker, CI y despliegue.
+- [ ] I1 Proveedor LLM desacoplado detrás de un adaptador, llamado mediante API key en el servidor.
+- [ ] I2 Autenticación de consumidores, límites de consumo y secretos gestionados correctamente.
+- [ ] I3 Persistencia durable y configuración por entorno.
+- [ ] I4 Pruebas de integración para llamadas externas, timeout y errores del proveedor.
+- [ ] I5 Documentación de integración para Python, Java/Spring Boot y clientes web.
+- [ ] I6 Preparación para Docker, CI y despliegue.
 
 ## Sección 9 — producción (pendiente)
 
