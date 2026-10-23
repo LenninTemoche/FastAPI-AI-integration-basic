@@ -6,8 +6,8 @@ import unittest
 import httpx
 
 from app.core.config import Settings
-from app.integrations.llm.openai_compatible import OpenAICompatibleChatProvider
-from app.services.ports.llm_provider import (
+from app.modules.llm.adapters.openai_compatible import OpenAICompatibleChatProvider
+from app.modules.llm.ports import (
     LLMNotConfiguredError,
     LLMProviderRateLimitError,
     LLMProviderResponseError,

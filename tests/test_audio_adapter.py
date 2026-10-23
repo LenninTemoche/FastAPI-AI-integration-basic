@@ -6,8 +6,8 @@ import unittest
 import httpx
 
 from app.core.config import Settings
-from app.integrations.llm.openai_compatible_audio import OpenAICompatibleAudioTranscriber
-from app.services.ports.llm_provider import (
+from app.modules.media.adapters.openai_audio import OpenAICompatibleAudioTranscriber
+from app.modules.llm.ports import (
     LLMNotConfiguredError,
     LLMProviderRateLimitError,
     LLMProviderResponseError,

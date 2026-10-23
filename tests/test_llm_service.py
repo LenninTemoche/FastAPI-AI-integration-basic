@@ -2,8 +2,8 @@
 
 import unittest
 
-from app.services.llm_service import LLMService
-from app.services.ports.llm_provider import LLMGenerationResult
+from app.modules.llm.service import LLMService
+from app.modules.llm.ports import LLMGenerationResult
 
 
 class FakeProvider:

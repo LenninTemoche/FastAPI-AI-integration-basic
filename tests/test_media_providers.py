@@ -6,9 +6,9 @@ import unittest
 import httpx
 
 from app.core.config import Settings
-from app.integrations.llm.openai_compatible_audio import OpenAICompatibleAudioTranscriber
-from app.integrations.llm.openai_compatible_vision import OpenAICompatibleVisionProvider
-from app.services.ports.llm_provider import LLMNotConfiguredError, LLMProviderResponseError
+from app.modules.media.adapters.openai_audio import OpenAICompatibleAudioTranscriber
+from app.modules.media.adapters.openai_vision import OpenAICompatibleVisionProvider
+from app.modules.llm.ports import LLMNotConfiguredError, LLMProviderResponseError
 
 
 def media_settings(**overrides) -> Settings:

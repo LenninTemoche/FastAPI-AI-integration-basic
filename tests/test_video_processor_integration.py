@@ -9,7 +9,7 @@ from pathlib import Path
 import imageio_ffmpeg
 
 from app.core.config import Settings
-from app.integrations.media.ffmpeg_video_processor import FFmpegVideoProcessor
+from app.modules.media.adapters.ffmpeg_video_processor import FFmpegVideoProcessor
 
 
 class FFmpegVideoProcessorIntegrationTests(unittest.TestCase):

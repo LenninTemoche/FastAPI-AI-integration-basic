@@ -4,9 +4,9 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from app.core.dependencies import get_llm_service
-from app.main import app
-from app.services.ports.llm_provider import (
+from app.main import create_app
+from app.modules.llm.deps import get_llm_service
+from app.modules.llm.ports import (
     LLMGenerationResult,
     LLMNotConfiguredError,
     LLMProviderRateLimitError,
@@ -39,12 +39,13 @@ class FakeLLMService:
 class LLMApiContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.fake_service = FakeLLMService()
-        app.dependency_overrides[get_llm_service] = lambda: self.fake_service
-        self.context = TestClient(app)
+        self.app = create_app(enabled=["llm"])
+        self.app.dependency_overrides[get_llm_service] = lambda: self.fake_service
+        self.context = TestClient(self.app)
         self.client = self.context.__enter__()
 
     def tearDown(self) -> None:
-        app.dependency_overrides.pop(get_llm_service, None)
+        self.app.dependency_overrides.pop(get_llm_service, None)
         self.context.__exit__(None, None, None)
 
     def test_valid_request_returns_stable_neutral_contract(self) -> None:
@@ -110,3 +111,7 @@ class LLMApiContractTests(unittest.TestCase):
                 )
         self.assertIn("LLMAskRequest", schema["components"]["schemas"])
         self.assertIn("LLMAskResponse", schema["components"]["schemas"])
+
+
+if __name__ == "__main__":
+    unittest.main()

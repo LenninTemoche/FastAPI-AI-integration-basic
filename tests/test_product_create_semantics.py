@@ -8,22 +8,23 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from app.api.v1.router import router as api_v1_router
-from app.core.dependencies import get_product_service
-from app.main import app
-from app.repositories.in_memory_product_repository import InMemoryProductRepository
-from app.services.product_service import ProductService
+from app.main import create_app
+from app.modules.products.in_memory_repository import InMemoryProductRepository
+from app.modules.products.service import ProductService
 
 
 class ProductCreateSemanticsTests(unittest.TestCase):
     def setUp(self) -> None:
         self.repository = InMemoryProductRepository()
         self.service = ProductService(self.repository)
-        app.dependency_overrides[get_product_service] = lambda: self.service
-        self.client = TestClient(app)
+        self.app = create_app(enabled=["products"])
+        self.app.dependency_overrides[self.service.__class__] = lambda: self.service
+        # Need to override the actual dependency
+        from app.modules.products.deps import get_product_service
+        self.app.dependency_overrides[get_product_service] = lambda: self.service
+        self.client = TestClient(self.app)
 
     def tearDown(self) -> None:
-        app.dependency_overrides.pop(get_product_service, None)
         self.client.close()
 
     @staticmethod

@@ -18,16 +18,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-import app.main as main  # noqa: E402
-from app.main import app  # noqa: E402
+from app.main import create_app  # noqa: E402
+from app.modules.products.deps import get_product_service  # noqa: E402
+from app.modules.products.in_memory_repository import InMemoryProductRepository  # noqa: E402
+from app.modules.products.service import ProductService  # noqa: E402
 
 
-from app.core.dependencies import get_product_service  # noqa: E402
-from app.repositories.in_memory_product_repository import InMemoryProductRepository  # noqa: E402
-from app.services.product_service import ProductService  # noqa: E402
-
-
-def _reset_state() -> None:
+def _reset_state(app) -> None:
     """Reinicia el almacenamiento en memoria entre pruebas."""
     repo = InMemoryProductRepository()
     service = ProductService(repo)
@@ -35,7 +32,8 @@ def _reset_state() -> None:
 
 
 def _client() -> TestClient:
-    _reset_state()
+    app = create_app(enabled=["products"])
+    _reset_state(app)
     return TestClient(app)
 
 

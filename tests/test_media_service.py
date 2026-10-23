@@ -3,15 +3,15 @@
 import unittest
 
 from app.core.config import Settings
-from app.services.media_service import AudioTranscriptionService, VideoAnalysisService
-from app.services.ports.media_provider import (
+from app.modules.media.service import AudioTranscriptionService, VideoAnalysisService
+from app.modules.media.ports import (
     ExtractedVideoMedia,
     MediaInputError,
     MediaTranscriptionResult,
     TranscriptStatus,
     VideoAnalysisResult,
 )
-from app.services.ports.llm_provider import LLMGenerationResult
+from app.modules.llm.ports import LLMGenerationResult
 
 
 class FakeTranscriptionProvider:

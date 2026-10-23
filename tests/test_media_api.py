@@ -4,11 +4,11 @@ import unittest
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from app.core.dependencies import get_audio_transcription_service, get_video_analysis_service
+from app.main import create_app
 from app.core.config import Settings, get_settings
-from app.main import app
-from app.services.ports.llm_provider import LLMGenerationResult
-from app.services.ports.media_provider import MediaTranscriptionResult, VideoAnalysisResult
+from app.modules.media.deps import get_audio_transcription_service, get_video_analysis_service
+from app.modules.llm.ports import LLMGenerationResult
+from app.modules.media.ports import MediaTranscriptionResult, VideoAnalysisResult
 
 
 class FakeAudioService:
@@ -28,16 +28,17 @@ class FakeVideoService:
 
 class MediaApiTests(unittest.TestCase):
     def setUp(self):
-        app.dependency_overrides[get_audio_transcription_service] = lambda: FakeAudioService()
-        app.dependency_overrides[get_video_analysis_service] = lambda: FakeVideoService()
-        app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None)
-        self.context = TestClient(app)
+        self.app = create_app(enabled=["llm", "media"])
+        self.app.dependency_overrides[get_audio_transcription_service] = lambda: FakeAudioService()
+        self.app.dependency_overrides[get_video_analysis_service] = lambda: FakeVideoService()
+        self.app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None)
+        self.context = TestClient(self.app)
         self.client = self.context.__enter__()
 
     def tearDown(self):
-        app.dependency_overrides.pop(get_audio_transcription_service, None)
-        app.dependency_overrides.pop(get_video_analysis_service, None)
-        app.dependency_overrides.pop(get_settings, None)
+        self.app.dependency_overrides.pop(get_audio_transcription_service, None)
+        self.app.dependency_overrides.pop(get_video_analysis_service, None)
+        self.app.dependency_overrides.pop(get_settings, None)
         self.context.__exit__(None, None, None)
 
     def test_transcription_endpoint_contract(self):
@@ -80,9 +81,9 @@ class MediaApiTests(unittest.TestCase):
 
     def test_audio_upload_limit_is_enforced_before_provider_call(self):
         fake = FakeAudioService()
-        app.dependency_overrides[get_audio_transcription_service] = lambda: fake
+        self.app.dependency_overrides[get_audio_transcription_service] = lambda: fake
         small_limit = Settings(_env_file=None, media_max_audio_mb=1)
-        app.dependency_overrides[get_settings] = lambda: small_limit
+        self.app.dependency_overrides[get_settings] = lambda: small_limit
         response = self.client.post(
             "/api/v1/media/transcriptions",
             files={"file": ("voice.wav", b"x" * (1024 * 1024 + 1), "audio/wav")},
@@ -90,3 +91,7 @@ class MediaApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 413)
         # La respuesta es temprana: no se llama al servicio falso.
         self.assertEqual(response.json().get("detail"), "El archivo excede el tamaño máximo permitido.")
+
+
+if __name__ == "__main__":
+    unittest.main()

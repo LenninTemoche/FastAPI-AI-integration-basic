@@ -4,21 +4,19 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from app.core.dependencies import (
-    get_audio_transcription_service,
-    get_video_analysis_service,
-)
-from app.main import app
-from app.services.media_service import AudioTranscriptionService, VideoAnalysisService
-from app.services.ports.media_provider import (
+from app.main import create_app
+from app.modules.media.deps import get_audio_transcription_service, get_video_analysis_service
+from app.modules.media.service import AudioTranscriptionService, VideoAnalysisService
+from app.modules.media.ports import (
     ExtractedVideoMedia,
     MediaInputError,
     MediaPayloadTooLargeError,
+    MediaProcessorUnavailableError,
     MediaTranscriptionResult,
     TranscriptStatus,
     VideoAnalysisResult,
 )
-from app.services.ports.llm_provider import LLMGenerationResult
+from app.modules.llm.ports import LLMGenerationResult
 
 
 class FakeAudioTranscriptionService(AudioTranscriptionService):
@@ -45,7 +43,7 @@ class FakeAudioTranscriptionService(AudioTranscriptionService):
 
 class FakeVideoAnalysisService(VideoAnalysisService):
     def __init__(self, result: VideoAnalysisResult | None = None, error: Exception | None = None):
-        from app.services.ports.llm_provider import LLMGenerationResult
+        from app.modules.llm.ports import LLMGenerationResult
         self.result = result or VideoAnalysisResult(
             generation=LLMGenerationResult(
                 provider="fake", model="gpt-4o", content="análisis simulado",
@@ -77,14 +75,15 @@ class MediaEndpointsTests(unittest.TestCase):
     def setUp(self) -> None:
         self.fake_audio = FakeAudioTranscriptionService()
         self.fake_video = FakeVideoAnalysisService()
-        app.dependency_overrides[get_audio_transcription_service] = lambda: self.fake_audio
-        app.dependency_overrides[get_video_analysis_service] = lambda: self.fake_video
-        self.context = TestClient(app)
+        self.app = create_app(enabled=["llm", "media"])
+        self.app.dependency_overrides[get_audio_transcription_service] = lambda: self.fake_audio
+        self.app.dependency_overrides[get_video_analysis_service] = lambda: self.fake_video
+        self.context = TestClient(self.app)
         self.client = self.context.__enter__()
 
     def tearDown(self) -> None:
-        app.dependency_overrides.pop(get_audio_transcription_service, None)
-        app.dependency_overrides.pop(get_video_analysis_service, None)
+        self.app.dependency_overrides.pop(get_audio_transcription_service, None)
+        self.app.dependency_overrides.pop(get_video_analysis_service, None)
         self.context.__exit__(None, None, None)
 
     def test_transcribe_audio_returns_200(self) -> None:
@@ -172,7 +171,6 @@ class MediaEndpointsTests(unittest.TestCase):
         self.assertEqual(response.status_code, 415)
 
     def test_transcribe_provider_error_returns_503(self) -> None:
-        from app.services.ports.media_provider import MediaProcessorUnavailableError
         self.fake_audio.error = MediaProcessorUnavailableError("proveedor no disponible")
         response = self.client.post(
             "/api/v1/media/transcriptions",
@@ -181,7 +179,6 @@ class MediaEndpointsTests(unittest.TestCase):
         self.assertEqual(response.status_code, 503)
 
     def test_video_provider_error_returns_503(self) -> None:
-        from app.services.ports.media_provider import MediaProcessorUnavailableError
         self.fake_video.error = MediaProcessorUnavailableError("proveedor no disponible")
         response = self.client.post(
             "/api/v1/media/videos/analyze",
