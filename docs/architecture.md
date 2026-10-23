@@ -6,467 +6,385 @@ Construir una API modular y documentada que se pueda integrar mediante HTTP/JSON
 
 ## 1. Estilo arquitectónico
 
-La primera versión será un **monolito modular**: una sola aplicación desplegable, organizada en módulos con responsabilidades claras. No se dividirá prematuramente en microservicios.
+La primera versión es un **monolito modular**: una sola aplicación desplegable, organizada en módulos con responsabilidades claras. No se dividirá prematuramente en microservicios.
 
 El objetivo es que la API pueda crecer sin acoplar sus rutas HTTP a la lógica de negocio, al mecanismo de persistencia ni al proveedor de IA.
 
-### Estructura actual
+### Estructura actual (Fase 1 completada)
 
 ```text
 app/
-├── main.py                                    # compone FastAPI, lifespan y registra routers
-├── api/
-│   ├── root.py                                # GET /
-│   └── v1/
-│       ├── router.py                          # prefijo /api/v1 y agregación de routers
-│       ├── endpoints/products.py              # adaptador HTTP del CRUD
-│       └── endpoints/llm.py                  # adaptador HTTP de generación de texto
+├── main.py                                    # create_app(enabled=...) + lifespan
 ├── core/
-│   ├── config.py                              # Settings con SecretStr y validador HTTPS
-│   ├── dependencies.py                        # composición de servicio/repositorio/LLM
-│   └── exception_handlers.py                 # dominio + errores LLM -> respuesta HTTP
-├── domain/
-│   ├── models.py                              # Product y ProductDraft
-│   └── exceptions.py                          # errores de dominio producto
-├── schemas/
-│   ├── product.py                             # contratos Pydantic del recurso
-│   ├── llm.py                                 # LLMAskRequest / LLMAskResponse
-│   └── errors.py                              # contrato de errores HTTP
-├── services/
-│   ├── product_service.py                     # casos de uso CRUD
-│   ├── llm_service.py                         # caso de uso de generación de texto
-│   └── ports/llm_provider.py                 # puerto LLMProvider y excepciones de dominio LLM
-├── integrations/
-│   └── llm/
-│       └── openai_compatible.py               # adaptador HTTPX para Chat Completions
-└── repositories/
-    ├── product_repository.py                  # protocolo de persistencia
-    └── in_memory_product_repository.py        # adaptador temporal en memoria
+│   ├── config.py                              # Settings + enabled_modules_list + LLM_PROVIDER
+│   ├── module.py                              # ModuleSpec dataclass
+│   ├── registry.py                            # resolve() + install_modules()
+│   ├── system.py                              # GET / · /health · /api/v1/modules
+│   └── schemas.py                             # ErrorResponse compartido
+└── modules/
+    ├── llm/                                   # Generación de texto
+    │   ├── manifest.py                        # ModuleSpec (register=errors)
+    │   ├── router.py                          # POST /ask
+    │   ├── service.py                         # LLMService
+    │   ├── deps.py                            # get_llm_service (inyecta proveedor)
+    │   ├── errors.py                          # 502/503/504 handlers
+    │   ├── ports.py                           # LLMProvider protocol + errores dominio
+    │   ├── schemas.py                         # LLMAskRequest/Response/Usage
+    │   └── adapters/
+    │       ├── __init__.py                    # build_provider factory (LLM_PROVIDER)
+    │       └── openai_compatible.py           # Chat Completions
+    ├── media/                                 # Audio + Video
+    │   ├── manifest.py                        # ModuleSpec (requires=llm)
+    │   ├── router.py                          # POST /transcriptions, /videos/analyze
+    │   ├── service.py                         # Audio/Video Analysis Services
+    │   ├── deps.py                            # get_audio/video_service
+    │   ├── errors.py                          # 413/415/422/502/503/504 handlers
+    │   ├── ports.py                           # Audio/Video/Vision protocols
+    │   ├── schemas.py                         # Media/Video responses
+    │   └── adapters/
+    │       ├── __init__.py                    # exports
+    │       ├── ffmpeg_video_processor.py
+    │       ├── openai_audio.py                # /audio/transcriptions
+    │       └── openai_vision.py               # Chat Completions + frames
+    └── products/                              # CRUD demo
+        ├── manifest.py                        # ModuleSpec (name=products)
+        ├── router.py                          # CRUD /products
+        ├── service.py                         # ProductService
+        ├── deps.py                            # get_product_service (singleton repo)
+        ├── errors.py                          # ProductNotFoundError → 404
+        ├── repository.py                      # ProductRepository protocol
+        ├── in_memory_repository.py
+        ├── models.py                          # Product / ProductDraft
+        ├── exceptions.py                      # ProductNotFoundError
+        └── schemas.py                         # ProductCreate/Read/ListResponse
 ```
 
 ## 2. Vista de alto nivel
 
 ```mermaid
 flowchart TD
-    C[Clientes HTTP/JSON<br/>Web · móvil · Java · Python · ML] --> API[FastAPI<br/>routers y versionado]
-    API --> SCH[Esquemas Pydantic<br/>contratos y validación]
-    API --> SVC[Servicios<br/>casos de uso]
-    SVC --> REP[Interfaces/repositorios<br/>acceso a datos]
-    REP --> DB[(Almacenamiento<br/>intercambiable)]
-    SVC --> LLM_SVC[LLMService<br/>caso de uso]
-    LLM_SVC --> LLM_PORT[LLMProvider<br/>puerto/protocolo]
-    LLM_PORT --> LLM_ADAPT[OpenAICompatibleChatProvider<br/>adaptador HTTPX]
-    LLM_ADAPT --> EXT[Proveedor externo de IA]
-    API --> SEC[Configuración y seguridad]
+    C[Clientes HTTP/JSON<br/>Web · móvil · Java · Python · ML] --> MAIN[app/main.py<br/>create_app(enabled=...) + lifespan]
+    MAIN --> SYS[app/core/system.py<br/>GET / · /health · /modules]
+    MAIN --> REG[app/core/registry.py<br/>resolve + install_modules]
+    MAIN -.->|importlib| MODS[app/modules/<name>/]
+    MODS --> LLM[llm/<br/>service · ports · adapters]
+    MODS --> MEDIA[media/<br/>service · ports · adapters]
+    MODS --> PROD[products/<br/>service · repo · in-memory]
+    MEDIA --> LLM
+    SYS -.->|OpenAPI| DOCS[/docs · /openapi.json]
+    MAIN -.->|lifespan| LIFESPAN[httpx.AsyncClient<br/>shared pool]
 
     style C fill:#1a202c,stroke:#0d1117,color:#f1f5f9
-    style API fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style SCH fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style REP fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style DB fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style LLM_SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style LLM_PORT fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style LLM_ADAPT fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style EXT fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style SEC fill:#4a5568,stroke:#2d3748,color:#f1f5f9
+    style MAIN fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style SYS fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style REG fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style MODS fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style LLM fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style MEDIA fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style PROD fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style LIFESPAN fill:#4a5568,stroke:#2d3748,color:#f1f5f9
 ```
 
 ### Responsabilidades y dirección de dependencias
 
 | Capa                           | Responsabilidad                                                                                          | No debe depender de                        |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `main.py`                    | Crear la aplicación, registrar excepciones e incluir routers                                            | Lógica CRUD concreta                      |
-| `app/api/`                   | Routers HTTP (root + v1 + endpoints). Traduce HTTP/JSON a llamadas de servicio y resultados a respuestas | Implementación directa de almacenamiento  |
-| `schemas/`                   | Validar solicitudes y definir contratos públicos                                                        | Servicio y persistencia                    |
-| `services/`                  | Coordinar casos de uso y reglas de aplicación                                                           | FastAPI, `Response` o SDK de proveedores |
-| `domain/`                    | Modelos y excepciones centrales del dominio                                                              | FastAPI, Pydantic y tecnología de datos   |
-| `repositories/`              | Contrato y adaptadores de persistencia                                                                   | Rutas HTTP                                 |
-| `core/dependencies.py`       | Elegir y entregar implementaciones a la aplicación                                                      | Reglas de negocio                          |
-| `core/config.py`             | Cargar y validar variables de entorno, tratando secretos como `SecretStr`                              | Reglas de negocio                          |
-| `core/exception_handlers.py` | Traducir errores internos a respuestas HTTP conocidas sin filtrar contenido externo                      | Implementación concreta de proveedores    |
-| `integrations/llm/`          | Adaptadores concretos para APIs externas                                                                 | Contratos HTTP públicos del proyecto      |
-| `integrations/media/`        | Adaptadores multimedia (audio, video)                                                                    | Contratos HTTP públicos del proyecto      |
-| `services/media_service.py`  | Casos de uso de transcripción y análisis de video                                                        | FastAPI, HTTPX                            |
-| `services/ports/media_provider.py` | Puertos de transcripción, visión y procesamiento de medios                                       | FastAPI, HTTPX, FFmpeg                    |
+| `main.py`                      | Crear la aplicación, registrar excepciones, instalar módulos                                             | Lógica CRUD concreta                       |
+| `app/core/system.py`           | Endpoints transversales (GET /, /health, /modules)                                                       | Módulos específicos                        |
+| `app/core/registry.py`         | Resolver dependencias e instalar módulos en orden topológico                                             | Implementaciones concretas                 |
+| `app/modules/<name>/manifest.py` | Exporta `ModuleSpec` (router, register, requires, lifespan)                                              | Otros módulos (salvo `requires`)           |
+| `app/modules/<name>/router.py` | Endpoints HTTP del módulo, sin prefijo (registry añade `/api/v1/<name>`)                                 | Servicios y esquemas del mismo módulo      |
+| `app/modules/<name>/service.py`| Casos de uso, reglas de aplicación                                                                       | FastAPI, HTTPX, SDKs                       |
+| `app/modules/<name>/ports.py`  | Protocolos/Interfaces para adaptadores                                                                   | FastAPI, HTTPX, SDKs, FFmpeg               |
+| `app/modules/<name>/adapters/` | Implementaciones concretas de puertos                                                                    | Contratos HTTP públicos                    |
+| `app/modules/<name>/schemas.py`| Contratos Pydantic de entrada/salida del módulo                                                          | Servicios, persistencia                    |
+| `app/modules/<name>/errors.py` | Manejadores de excepción del módulo                                                                      | Implementaciones concretas                 |
+| `app/modules/<name>/deps.py`   | Inyección de dependencias del módulo (servicios, proveedores)                                            | Reglas de negocio                          |
+| `app/core/config.py`           | Cargar y validar variables de entorno, `SecretStr`, `enabled_modules_list`, `LLM_PROVIDER`               | Reglas de negocio                          |
+| `app/core/schemas.py`          | `ErrorResponse` compartido                                                                               | —                                          |
 
-## Cómo se conectan los routers
+## 3. Module Registry (Nuevo en Fase 1)
 
-`app/main.py` incluye `app.api.root.router` para `GET /` y
-`app/api.v1.router.router` para la API versionada. El router v1 aplica `/api/v1`
-y agrega los routers de los recursos productos (`/products`), LLM (`/llm`)
-y medios (`/media`). Esta composición conserva los paths publicados.
+### `ModuleSpec` (`app/core/module.py`)
 
-- `app/api/root.py`: define `GET /` con una respuesta de estado básica.
-- `app/api/v1/router.py`: router agregador con prefijo `/api/v1` que incluye
-  `app/api/v1/endpoints/products.py`, `app/api/v1/endpoints/llm.py` y
-  `app/api/v1/endpoints/media.py`.
-- `app/api/v1/endpoints/products.py`: contiene las operaciones CRUD HTTP
-  adaptadas a `ProductService`.
-- `app/api/v1/endpoints/llm.py`: contiene la operación HTTP para generación
-  de texto, adaptada a `LLMService`.
-- `app/api/v1/endpoints/media.py`: contiene los endpoints HTTP para
-  transcripción de audio y análisis de video, adaptados a
-  `AudioTranscriptionService` y `VideoAnalysisService`.
+```python
+@dataclass(frozen=True)
+class ModuleSpec:
+    name: str                                   # Debe coincidir con la carpeta
+    description: str
+    version: str = "1.0.0"
+    router: APIRouter | None = None
+    prefix: str | None = None                   # Por defecto: /api/v1/<name>
+    requires: tuple[str, ...] = ()              # Otros módulos que deben cargarse antes
+    register: Callable[[FastAPI], None] | None = None   # Manejadores de error, middleware...
+    lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]] | None = None
+```
 
-Para añadir un recurso futuro, se creará otro módulo bajo
-`app/api/v1/endpoints/` y se incluirá su router en `app/api/v1/router.py`. Evitar
-declarar una misma ruta en más de un módulo.
+### `install_modules` (`app/core/registry.py`)
 
-## Endpoints raíz y versiones
+```python
+def install_modules(app: FastAPI, enabled: list[str]) -> list[ModuleSpec]:
+    specs = resolve(enabled)  # orden topológico con detección de ciclos
+    for spec in specs:
+        if spec.register:
+            spec.register(app)
+        if spec.router:
+            app.include_router(
+                spec.router,
+                prefix=spec.prefix or f"/api/v1/{spec.name}",
+                tags=[spec.name],
+            )
+        log.info("Módulo cargado: %s v%s", spec.name, spec.version)
+    app.state.modules = {s.name: s for s in specs}
+    return specs
+```
 
-- `GET /`: informa del propósito de la API y enlaza a `/docs`.
-- `GET /api/v1/`: redirige a `/api/v1/docs` sin repetir la descripción del servicio.
+### Carga dinámica y orden
 
-## Contracts, excepciones y transformaciones
+- `resolve(enabled)` construye el grafo de dependencias (`requires`) y devuelve módulos en orden de carga.
+- Detección de ciclos: `ModuleLoadError` si hay dependencia circular.
+- Módulos no listados en `enabled` no se montan (404 en sus rutas).
+- `app.state.modules` expone los módulos cargados para `/api/v1/modules`.
 
-- `schemas/product.py` define los contratos de entrada y salida para el recurso producto.
-- `app/domain/exceptions.py` define las excepciones de dominio (ej. `ProductNotFoundError`), que no contienen lógica HTTP.
-- `app/core/exception_handlers.py` transforma excepciones de dominio en respuestas HTTP (ej. `ProductNotFoundError → 404 + ErrorResponse`).
+## 4. Módulos implementados
 
-Esta separación mantiene los dominios y servicios agnósticos a HTTP. Los endpoints
-HTTP (`app/api/v1/endpoints/products.py`) no tratan excepciones de dominio directamente;
-las dejan al manejador registrado en `app/main.py`.
+### 4.1 `llm` — Generación de texto
 
-## Persistencia, servicios y composición
+- **Endpoints**: `POST /api/v1/llm/ask`
+- **Contratos**: `LLMAskRequest` → `LLMAskResponse` (proveedor, modelo, usage)
+- **Puerto**: `LLMProvider` (protocol `generate(prompt, system_prompt)`)
+- **Adaptador**: `OpenAICompatibleChatProvider` (HTTPX + Bearer token)
+- **Factory**: `build_provider(settings, client)` seleccionable por `LLM_PROVIDER`
+- **Errores**: 502 (response error), 503 (not configured / rate limit), 504 (timeout)
+- **Config**: `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_TIMEOUT_SECONDS`, `LLM_MAX_TOKENS`, `LLM_TEMPERATURE`
 
-- `app/services/product_service.py` implementa los casos de uso y coordina repositorio y otros adaptadores.
-- `app/repositories/` contiene el protocolo `ProductRepository` y su implementación en memoria.
-- `app/core/dependencies.py` une servicio y repositorio para inyección de dependencias en los endpoints.
-- `app/api/v1/endpoints/products.py` adapta HTTP/JSON a `ProductService` mediante `Depends(get_product_service)`.
+### 4.2 `media` — Audio y video
 
-El servicio no conoce detalles de persistencia y el endpoint solo interactúa con el servicio, lo que facilita el intercambio de mecanismos de almacenamiento.
+- **Endpoints**:
+  - `POST /api/v1/media/transcriptions` (multipart audio → texto)
+  - `POST /api/v1/media/videos/analyze` (multipart video → análisis + transcripción opcional)
+- **Requiere**: `llm` (usa `LLMProvider` para visión y transcripción)
+- **Puertos**:
+  - `AudioTranscriptionProvider` (transcribe audio)
+  - `VideoVisionProvider` (analiza frames + transcript)
+  - `VideoProcessor` (extrae frames + audio opcional)
+- **Adaptadores**:
+  - `OpenAICompatibleAudioTranscriber` (POST /audio/transcriptions)
+  - `OpenAICompatibleVisionProvider` (Chat Completions + frames base64)
+  - `FFmpegVideoProcessor` (extracción local con límites configurados)
+- **Errores**: 413 (too large), 415 (unsupported), 422 (input error), 502/503/504 (provider/processor)
+- **Config**: `MEDIA_TRANSCRIPTION_MODEL`, `MEDIA_MAX_AUDIO_MB`, `MEDIA_MAX_VIDEO_MB`, `MEDIA_VIDEO_MAX_FRAMES`, `MEDIA_VIDEO_FRAME_INTERVAL_SECONDS`, `MEDIA_PROCESSING_TIMEOUT_SECONDS`
 
-### Duplicados y reintentos
+### 4.3 `products` — CRUD demostrativo
 
-El CRUD didáctico no deduplica un POST por igualdad de contenido. La decisión está
-documentada en `docs/create-and-idempotency-semantics.md`. La unicidad de negocio
-y una futura clave de idempotencia deben aplicarse en las capas apropiadas y no
-introducirse como lógica improvisada en los endpoints.
+- **Endpoints**: CRUD completo bajo `/api/v1/products`
+- **Repositorio**: `ProductRepository` protocol + `InMemoryProductRepository`
+- **Singleton**: `get_product_repository` usa `@lru_cache` para mantener estado entre requests
+- **Errores**: `ProductNotFoundError` → 404 con `ErrorResponse`
+- **Config**: ninguna específica (usa repositorio en memoria)
 
-## 3. Responsabilidades por capa
+## 5. Configuración (`app/core/config.py`)
 
-### Capa HTTP: `app/api/`
+```python
+class Settings(BaseSettings):
+    # Módulos activos
+    enabled_modules: str = "llm,media,products"
+    
+    @property
+    def enabled_modules_list(self) -> list[str]:
+        return [m.strip() for m in self.enabled_modules.split(",") if m.strip()]
 
-- `app/api/root.py`: define `GET /` con una respuesta de estado básica.
-- `app/api/v1/router.py`: router agregador con prefijo `/api/v1` que incluye los routers de los recursos.
-- `app/api/v1/endpoints/products.py`: adaptador HTTP del CRUD, traduce solicitudes y respuestas a/from `ProductService`.
-- Declara rutas, métodos HTTP, parámetros y códigos de respuesta.
-- Mantiene el versionado público, inicialmente `/api/v1`.
-- No debe contener lógica de negocio extensa ni acceder directamente a la base de datos.
+    # Proveedor LLM
+    llm_provider: Literal["openai_compatible"] = "openai_compatible"
+    llm_api_key: SecretStr | None = None
+    llm_base_url: AnyHttpUrl | None = None
+    llm_model: str | None = None
+    # ... timeouts, tokens, temperature ...
 
-### Contratos: `schemas/`
+    # Media
+    media_transcription_model: str | None = None
+    media_max_audio_mb: int = 25
+    media_max_video_mb: int = 50
+    # ... video limits, ffmpeg timeouts ...
+```
 
-- Define modelos de solicitud y respuesta con Pydantic.
-- Expresa campos obligatorios, OPTIONALES, límites y formatos.
-- Evita devolver objetos internos arbitrarios como contrato público.
-- No almacena secretos ni realiza llamadas externas.
+Validación: `LLM_BASE_URL` debe ser HTTPS salvo loopback (`localhost`, `127.0.0.1`, `::1`).
 
-### Lógica de negocio: `services/`
+## 6. Cómo se conectan los routers
 
-- Implementa casos de uso y reglas de negocio.
-- Coordina repositorios y adaptadores.
-- Puede probarse sin iniciar un servidor HTTP.
-- No debe depender directamente de un framework web cuando una abstracción sencilla sea suficiente.
+`app/main.py` crea la app y llama a `install_modules`:
 
-### Persistencia: `repositories/`
+```python
+def create_app(enabled: list[str] | None = None) -> FastAPI:
+    settings = get_settings()
+    app = FastAPI(..., lifespan=lifespan)
+    app.include_router(system.router)  # GET /, /health, /api/v1/modules
+    install_modules(app, enabled if enabled is not None else settings.enabled_modules_list)
+    return app
+```
 
-- Define cómo se consulta o modifica el estado persistente.
-- La implementación en memoria, si se usa para la fase didáctica, será una implementación temporal.
-- El servicio no debe depender de detalles específicos de una base de datos.
-- La persistencia duradera y sus migraciones quedan para una etapa posterior.
+El registry monta cada router bajo `/api/v1/<module>` (o `prefix` personalizado en `ModuleSpec`).
 
-### Integraciones externas: `integrations/`
+## 7. Endpoints raíz y versiones
 
-- Encapsula las llamadas HTTP o SDK a proveedores externos.
-- Define una frontera estable para el proveedor LLM.
-- Configura timeout y tratamiento de errores de red.
-- Evita que los nombres de modelos, esquemas de SDK o formatos internos del proveedor se filtren innecesariamente al contrato público.
+- `GET /`: informa del propósito de la API.
+- `GET /health`: `{"status": "ok"}` para health checks.
+- `GET /api/v1/modules`: lista módulos activos con `name`, `version`, `description`.
 
-### Configuración y seguridad: `core/`
+## 8. Contracts, excepciones y transformaciones
 
-- Centraliza configuración a partir de variables de entorno.
-- Distingue configuración local de secretos.
-- Aloja dependencias comunes de seguridad cuando se implementen.
-- No debe incluir claves reales en código, ejemplos ni logs.
+Cada módulo define sus propios esquemas y manejadores de error:
 
-### Extensión de Machine Learning: `ml/` (futura y opcional)
+- `app/modules/products/errors.py` → `ProductNotFoundError` → 404
+- `app/modules/llm/errors.py` → errores LLM → 502/503/504
+- `app/modules/media/errors.py` → errores media → 413/415/422/502/503/504
+- `app/core/schemas.py` → `ErrorResponse` compartido (`detail: str`)
 
-- Podrá cargar artefactos de modelos existentes y exponer inferencia.
-- Mantendrá separadas las dependencias pesadas de ML de los módulos básicos de la API cuando sea viable.
-- No forma parte de la implementación de la sección 1.
+Esta separación mantiene los dominios y servicios agnósticos a HTTP. Los endpoints no tratan excepciones de dominio directamente; las dejan a los handlers registrados por `spec.register(app)`.
 
-## 4. Flujo de una solicitud
+## 9. Persistencia, servicios y composición
 
-1. Un consumidor envía una solicitud HTTP/JSON.
-2. FastAPI identifica la ruta y procesa parámetros y dependencias.
-3. Pydantic valida la estructura de entrada.
-4. El router delega el caso de uso a un servicio.
-5. El servicio usa un repositorio o adaptador externo según sea necesario.
-6. El resultado se convierte a un esquema de respuesta documentado.
-7. La API devuelve el código HTTP y el cuerpo definidos en el contrato.
+- `ProductService` depende del protocolo `ProductRepository`, no de la implementación.
+- `InMemoryProductRepository` es singleton vía `@lru_cache` en `deps.py`.
+- Para incorporar SQL u otro almacenamiento, se implementa el protocolo y se cambia el enlace en `products/deps.py`.
 
-## 5. Persistencia
+## 10. Integración LLM mediante adaptador
 
-`ProductService` depende del protocolo `ProductRepository`, no del `InMemoryProductRepository`. Para incorporar SQL u otro almacenamiento, se implementa el protocolo y se cambia el enlace en `app/core/dependencies.py`. No se deben introducir consultas a la base de datos directamente en los endpoints.
+El proveedor por defecto es `openai_compatible`, seleccionable mediante `LLM_PROVIDER`. El diseño permite elegirlo desde configuración y, si se requiere un protocolo distinto, añadir un nuevo adaptador que implemente `LLMProvider` sin modificar el endpoint ni el caso de uso.
 
-La implementación actual guarda datos en memoria del proceso. No es durable, no sincroniza distintas instancias y solo sirve para desarrollo y aprendizaje.
+### Flujo de la solicitud LLM
 
-## 6. Integración HTTP/JSON
+1. FastAPI valida el JSON como `LLMAskRequest`.
+2. El endpoint depende de `LLMService` (inyectado vía `deps.py`), sin conocer URLs, API keys ni librerías de proveedor.
+3. `LLMService` invoca el contrato `LLMProvider`.
+4. `OpenAICompatibleChatProvider` prepara la solicitud HTTP y usa el `AsyncClient` compartido del lifespan.
+5. El adaptador normaliza texto/modelo/uso a `LLMGenerationResult`.
+6. El endpoint devuelve `LLMAskResponse`; los fallos conocidos se convierten a `ErrorResponse` con estado 502/503/504.
 
-Los esquemas Pydantic forman el contrato externo. Los clientes no deberían depender de clases Python internas ni de la implementación del repositorio. Cambios en esas capas deben preservar los endpoints, los códigos HTTP y la forma de respuesta, o documentarse como una evolución incompatible.
+### Cómo incorporar otro proveedor
 
-## 7. Decisión sobre LLM
+Si el nuevo proveedor es compatible con el mismo contrato Chat Completions, se cambian base URL, credencial y modelo mediante entorno. Si el protocolo es distinto, crear una implementación nueva de `LLMProvider` bajo `app/modules/llm/adapters/` y añadir su selección en `build_provider` (una línea en `_PROVIDERS`). Mantener estable `LLMService`, `LLMAskRequest` y `LLMAskResponse` siempre que la funcionalidad sea equivalente.
 
-El proveedor por defecto es `openai_compatible`, seleccionable mediante la variable
-`LLM_PROVIDER`. El diseño permite elegirlo desde configuración y, si se requiere un
-protocolo distinto, añadir un nuevo adaptador que implemente `LLMProvider` sin
-modificar el endpoint ni el caso de uso.
+## 11. Extensión multimodal
 
-La clave del proveedor se mantendrá en el backend. No se enviará al navegador, a
-aplicaciones móviles ni a los clientes que consuman esta API. La autenticación de
-los consumidores de nuestra API es una responsabilidad independiente de la
-credencial del proveedor.
+- `app/modules/media/router.py` expone contratos HTTP para transcripción y análisis de video.
+- `app/modules/media/service.py` orquesta transcripción/análisis sin importar FastAPI ni HTTPX.
+- `app/modules/media/ports.py` define los puertos de transcripción, visión y procesamiento de medios.
+- `app/modules/media/adapters/openai_audio.py` implementa el protocolo de transcripción con multipart.
+- `app/modules/media/adapters/openai_vision.py` envía fotogramas como imágenes a un modelo de visión compatible.
+- `app/modules/media/adapters/ffmpeg_video_processor.py` extrae fotogramas y una pista de audio opcional mediante FFmpeg.
 
-Ver la implementación completa en la sección [8. Integración LLM](#8-integración-llm-mediante-adaptador-sección-8) más abajo.
+El video no se sube como video nativo al endpoint de chat: se toma una muestra acotada de frames y, si se habilita, se transcribe por separado su audio.
 
-## 9. Errores y contratos
+## 12. Errores y contratos
 
 - Los errores de validación se expondrán mediante respuestas coherentes con FastAPI y su contrato OpenAPI.
 - Los recursos inexistentes devolverán `404` cuando aplique.
 - Los errores de autenticación y autorización se distinguirán (`401` y `403`).
 - Los conflictos del estado del recurso podrán usar `409`.
 - Los fallos inesperados no expondrán trazas, secretos ni detalles internos al consumidor.
-- El formato común de errores se definirá durante la implementación, evitando prometer uniformidad antes de probarla.
+- El formato común de errores es `ErrorResponse` (`detail: str`).
 
-## 10. Versionado y compatibilidad
+## 13. Versionado y compatibilidad
 
-La API pública comenzará bajo `/api/v1`. Los cambios compatibles podrán añadirse dentro de la versión actual; los cambios incompatibles exigirán una estrategia explícita de migración y una versión nueva cuando corresponda.
+La API pública está bajo `/api/v1`. Los cambios compatibles podrán añadirse dentro de la versión actual; los cambios incompatibles exigirán una estrategia explícita de migración y una versión nueva cuando corresponda.
 
-## 11. Decisiones aún abiertas
+## 14. Decisiones aún abiertas
 
 - Gestor de dependencias y formato de bloqueo.
 - Almacenamiento persistente definitivo.
-- Mecanismo de autenticación y política de autorización concreta.
+- Mecanismo de autenticación y política de autorización concreta (Fase 2).
 - Estrategia de despliegue y observabilidad.
 - Forma de distribuir la plantilla como repositorio plantilla o paquete Python.
 
-## 8. Integración LLM mediante adaptador (sección 8)
+## 15. Testing de modularidad
 
-La API expone una operación de generación de texto reutilizable por HTTP/JSON sin
-acoplar endpoints ni casos de uso a un proveedor comercial específico. El diseño
-sigue la arquitectura de puertos y adaptadores:
+`tests/test_modularity.py` verifica:
 
-- `app/services/ports/llm_provider.py`: puerto neutral `LLMProvider` y tipos de
-  error de integración (`LLMError`, `LLMNotConfiguredError`,
-  `LLMProviderTimeoutError`, `LLMProviderRateLimitError`,
-  `LLMProviderUnavailableError`, `LLMProviderResponseError`). No importa FastAPI
-  ni HTTPX.
-- `app/services/llm_service.py`: caso de uso que inyecta un `LLMProvider` y
-  devuelve un resultado neutral (`LLMGenerationResult`).
-- `app/api/v1/endpoints/llm.py`: adaptador HTTP que traduce `LLMAskRequest` en una
-  llamada al servicio y normaliza la respuesta a `LLMAskResponse`.
-- `app/integrations/llm/openai_compatible.py`: adaptador concreto para proveedores
-  compatibles con OpenAI Chat Completions, usando HTTPX asíncrono y autenticación
-  Bearer con la clave cargada desde el servidor.
-- `app/core/config.py`: carga y valida variables de entorno (`LLM_API_KEY`,
-  `LLM_BASE_URL`, `LLM_MODEL`, etc.) tratando la API key como `SecretStr`.
-- `app/core/dependencies.py`: compone el servicio LLM y selecciona el adaptador
-  por configuración.
-- `app/core/exception_handlers.py`: traduce errores del dominio LLM a respuestas
-  HTTP 503/504/502 sin exponer credenciales ni cuerpos de error externos.
+```python
+def test_only_enabled_modules_are_mounted(self):
+    client = TestClient(create_app(enabled=["products"]))
+    self.assertEqual(client.get("/api/v1/products").status_code, 200)
+    self.assertEqual(client.post("/api/v1/llm/ask", json={"prompt": "hola"}).status_code, 404)
 
-### Flujo de la solicitud LLM
+def test_unknown_module_fails_fast(self):
+    with self.assertRaises(ModuleLoadError):
+        create_app(enabled=["no_existe"])
 
-1. FastAPI valida el JSON como `LLMAskRequest`.
-2. El endpoint depende de `LLMService`, sin conocer URLs, API keys ni librerías
-   de proveedor.
-3. `LLMService` invoca el contrato `LLMProvider`.
-4. `OpenAICompatibleChatProvider` prepara la solicitud HTTP y usa el
-   `AsyncClient` compartido del lifespan.
-5. El adaptador normaliza texto/modelo/uso a `LLMGenerationResult`.
-6. El endpoint devuelve `LLMAskResponse`; los fallos conocidos se convierten a
-   `ErrorResponse` con estado 502/503/504.
+def test_modules_endpoint_lists_enabled(self):
+    client = TestClient(create_app(enabled=["llm"]))
+    names = [m["name"] for m in client.get("/api/v1/modules").json()]
+    self.assertEqual(names, ["llm"])
+```
 
-### Cómo incorporar otro proveedor
-
-Si el nuevo proveedor es compatible con el mismo contrato Chat Completions, se
-pueden cambiar base URL, credencial y modelo mediante entorno. Si el protocolo es
-distinto, crear una implementación nueva de `LLMProvider` bajo
-`app/integrations/llm/` y añadir su selección al punto de composición.
-Mantener estable `LLMService`, `LLMAskRequest` y `LLMAskResponse` siempre que la
-funcionalidad sea equivalente.
-
-### Limitaciones actuales
-
-- El CRUD usa memoria y pierde datos al reiniciar; no equivale a persistencia de
-  producción.
-- LLM se implementa como una petición de una sola interacción; no hay historial
-  ni streaming.
-- La llamada externa no tiene reintentos automáticos.
-- La API no incorpora todavía autenticación/autorización para consumidores, rate
-  limiting ni cuotas.
-- La sección 9 debe revisar seguridad, pruebas completas,
-  logging/observabilidad, empaquetado y despliegue.
-
-## Arquitectura implementada (secciones 7 y 8)
+## Arquitectura implementada (Fase 1 completa)
 
 ```mermaid
 flowchart TD
-    CLIENT[Clients HTTP/JSON<br/>Web · móvil · Python · Java · ML] --> MAIN[app/main.py<br/>Composición FastAPI<br/>sin rutas CRUD]
-    MAIN --> ROOT[app/api/root.py<br/>GET /]
-    MAIN --> V1[app/api/v1/router.py<br/>prefijo /api/v1]
-    V1 --> PROD[app/api/v1/endpoints/products.py<br/>adaptador HTTP del CRUD]
-    V1 --> LLM_EP[app/api/v1/endpoints/llm.py<br/>adaptador HTTP del LLM]
-    V1 --> MEDIA[app/api/v1/endpoints/media.py<br/>endpoints de audio y video]
-    PROD --> SVC[app/services/product_service.py<br/>ProductService<br/>Casos de uso]
-    LLM_EP --> LLM_SVC[app/services/llm_service.py<br/>LLMService<br/>Caso de uso]
-    MEDIA --> AUDIO_SVC[app/services/media_service.py<br/>AudioTranscriptionService]
-    MEDIA --> VIDEO_SVC[app/services/media_service.py<br/>VideoAnalysisService]
-    SVC --> REPO_PROTO[app/repositories/product_repository.py<br/>Protocolo ProductRepository]
-    REPO_PROTO --> REPO_IMPL[app/repositories/in_memory_product_repository.py<br/>Adaptador temporal]
-    LLM_SVC --> LLM_PORT[app/services/ports/llm_provider.py<br/>Puerto LLMProvider]
-    LLM_PORT --> LLM_ADAPT[app/integrations/llm/openai_compatible.py<br/>Adaptador OpenAI-compatible]
-    LLM_ADAPT --> EXT[Proveedor externo<br/>configurado por entorno]
-    AUDIO_SVC --> AUDIO_PORT[app/services/ports/media_provider.py<br/>AudioTranscriptionProvider]
-    AUDIO_PORT --> AUDIO_ADAPT[app/integrations/llm/openai_compatible_audio.py<br/>/audio/transcriptions (Whisper)]
-    VIDEO_SVC --> VIDEO_PROC[app/integrations/media/ffmpeg_video_processor.py<br/>FFmpeg frames + audio]
-    VIDEO_SVC --> VISION_PORT[app/services/ports/media_provider.py<br/>VideoVisionProvider]
-    VISION_PORT --> VISION_ADAPT[app/integrations/llm/openai_compatible_vision.py<br/>/chat/completions (frames)]
+    CLIENT[Clients HTTP/JSON<br/>Web · móvil · Python · Java · ML] --> MAIN[app/main.py<br/>create_app(enabled=...) + lifespan]
+    MAIN --> SYSTEM[app/core/system.py<br/>GET / · /health · /api/v1/modules]
+    MAIN --> REGISTRY[app/core/registry.py<br/>resolve + install_modules]
+    MAIN -.->|importlib| LLM[app/modules/llm/]
+    MAIN -.->|importlib| MEDIA[app/modules/media/]
+    MAIN -.->|importlib| PROD[app/modules/products/]
 
-    subgraph DOM["app/domain/"]
-        MODELS["models.py<br/>Product · ProductDraft"]
-        EXC["exceptions.py<br/>ProductNotFoundError<br/>(sin dependencia HTTP)"]
+    subgraph LLM_MOD [app/modules/llm/]
+        LLM_MAN[manifest.py<br/>ModuleSpec]
+        LLM_ROUTER[router.py<br/>POST /ask]
+        LLM_SVC[service.py<br/>LLMService]
+        LLM_DEPS[deps.py<br/>get_llm_service]
+        LLM_ERR[errors.py<br/>502/503/504 handlers]
+        LLM_PORTS[ports.py<br/>LLMProvider protocol]
+        LLM_SCH[schemas.py<br/>LLMAskRequest/Response]
+        LLM_ADAPTS[adapters/__init__.py<br/>build_provider factory]
+        LLM_OPENAI[adapters/openai_compatible.py<br/>Chat Completions]
     end
 
-    subgraph CORE["app/core/"]
-        DEPS["dependencies.py<br/>composición servicio + repositorio"]
-        ERR["exception_handlers.py<br/>ProductNotFoundError → HTTP 404<br/>+ ErrorResponse"]
-        LLM_ERR["exception_handlers.py<br/>errores LLM → HTTP 502/503/504"]
-        CONF["config.py<br/>configuración por entorno + SecretStr"]
+    subgraph MEDIA_MOD [app/modules/media/]
+        MEDIA_MAN[manifest.py<br/>ModuleSpec<br/>requires=llm]
+        MEDIA_ROUTER[router.py<br/>POST /transcriptions<br/>POST /videos/analyze]
+        MEDIA_SVC[service.py<br/>Audio/Video Services]
+        MEDIA_DEPS[deps.py<br/>get_audio/video_service]
+        MEDIA_ERR[errors.py<br/>413/415/422/502/503/504]
+        MEDIA_PORTS[ports.py<br/>Audio/Video/Vision protocols]
+        MEDIA_SCH[schemas.py<br/>Media/Video responses]
+        MEDIA_FFMPEG[adapters/ffmpeg_video_processor.py]
+        MEDIA_AUDIO[adapters/openai_audio.py<br/>/audio/transcriptions]
+        MEDIA_VISION[adapters/openai_vision.py<br/>Chat Completions + frames]
     end
 
-    PROD --> DEPS
-    SVC --> MODELS
-    SVC --> EXC
-    EXC --> ERR
-    REPO_IMPL --> MODELS
-    REPO_IMPL --> EXC
+    subgraph PROD_MOD [app/modules/products/]
+        PROD_MAN[manifest.py<br/>ModuleSpec]
+        PROD_ROUTER[router.py<br/>CRUD /products]
+        PROD_SVC[service.py<br/>ProductService]
+        PROD_DEPS[deps.py<br/>get_product_service]
+        PROD_ERR[errors.py<br/>404 handler]
+        PROD_REPO[repository.py<br/>ProductRepository protocol]
+        PROD_MEM[in_memory_repository.py<br/>InMemoryProductRepository]
+        PROD_MODS[models.py<br/>Product/ProductDraft]
+        PROD_EXC[exceptions.py<br/>ProductNotFoundError]
+        PROD_SCH[schemas.py<br/>ProductCreate/Read/List]
+    end
 
-    LLM_EP --> DEPS
-    LLM_SVC --> CONF
-    LLM_SVC --> LLM_PORT
-    LLM_ADAPT --> CONF
+    subgraph CORE [app/core/]
+        CORE_CONF[config.py<br/>Settings + enabled_modules_list]
+        CORE_MOD[module.py<br/>ModuleSpec dataclass]
+        CORE_REG[registry.py<br/>resolve + install_modules]
+        CORE_SYS[system.py<br/>system router]
+        CORE_SCH[schemas.py<br/>ErrorResponse compartido]
+    end
 
-    MEDIA --> DEPS
-    AUDIO_SVC --> CONF
-    VIDEO_SVC --> CONF
-    AUDIO_PORT --> CONF
-    VISION_PORT --> CONF
+    MEDIA_MOD --> LLM_MOD
+    MAIN -.->|lifespan| HTTP_CLIENT[httpx.AsyncClient<br/>shared pool]
+    CLIENT -.->|OpenAPI| DOCS[/docs · /openapi.json]
 
     style CLIENT fill:#1a202c,stroke:#0d1117,color:#f1f5f9
     style MAIN fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style ROOT fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style V1 fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style PROD fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style LLM_EP fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style MEDIA fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style LLM_SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style AUDIO_SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style VIDEO_SVC fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style REPO_PROTO fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style REPO_IMPL fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style LLM_PORT fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style LLM_ADAPT fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style EXT fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style MODELS fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style EXC fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style DEPS fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style ERR fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style LLM_ERR fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style CONF fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style AUDIO_PORT fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style AUDIO_ADAPT fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style VIDEO_PROC fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style VISION_PORT fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style VISION_ADAPT fill:#4a5568,stroke:#2d3748,color:#f1f5f9
+    style SYSTEM fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style REGISTRY fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style LLM_MOD fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style MEDIA_MOD fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style PROD_MOD fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style CORE fill:#4a5568,stroke:#2d3748,color:#f1f5f9
+    style HTTP_CLIENT fill:#4a5568,stroke:#2d3748,color:#f1f5f9
 ```
-
-### Responsabilidades y dirección de dependencias
-
-| Capa                           | Responsabilidad                                                                                          | No debe depender de                        |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `main.py`                    | Crear la aplicación, registrar excepciones e incluir routers                                            | Lógica CRUD concreta                      |
-| `app/api/`                   | Routers HTTP (root + v1 + endpoints). Traduce HTTP/JSON a llamadas de servicio y resultados a respuestas | Implementación directa de almacenamiento  |
-| `schemas/`                   | Validar solicitudes y definir contratos públicos                                                        | Servicio y persistencia                    |
-| `services/`                  | Coordinar casos de uso y reglas de aplicación                                                           | FastAPI, `Response` o SDK de proveedores |
-| `domain/`                    | Modelos y excepciones centrales del dominio                                                              | FastAPI, Pydantic y tecnología de datos   |
-| `repositories/`              | Contrato y adaptadores de persistencia                                                                   | Rutas HTTP                                 |
-| `core/dependencies.py`       | Elegir y entregar implementaciones a la aplicación                                                      | Reglas de negocio                          |
-| `core/config.py`             | Cargar y validar variables de entorno, tratando secretos como `SecretStr`                              | Reglas de negocio                          |
-| `core/exception_handlers.py` | Traducir errores internos a respuestas HTTP conocidas sin filtrar contenido externo                      | Implementación concreta de proveedores    |
-| `integrations/llm/`          | Adaptadores concretos para APIs externas                                                                 | Contratos HTTP públicos del proyecto      |
-| `integrations/media/`        | Adaptadores multimedia (audio, video)                                                                    | Contratos HTTP públicos del proyecto      |
-| `services/media_service.py`  | Casos de uso de transcripción y análisis de video                                                        | FastAPI, HTTPX                            |
-| `services/ports/media_provider.py` | Puertos de transcripción, visión y procesamiento de medios                                       | FastAPI, HTTPX, FFmpeg                    |
-
-### Cómo se conectan los routers
-
-`app/main.py` incluye `app.api.root.router` para `GET /` y
-`app/api.v1.router.router` para la API versionada. El router v1 aplica `/api/v1`
-y agrega los routers de los recursos productos (`/products`), LLM (`/llm`)
-y medios (`/media`). Esta composición conserva los paths publicados.
-
-- `app/api/root.py`: define `GET /` con una respuesta de estado básica.
-- `app/api/v1/router.py`: router agregador con prefijo `/api/v1` que incluye
-  `app/api/v1/endpoints/products.py`, `app/api/v1/endpoints/llm.py` y
-  `app/api/v1/endpoints/media.py`.
-- `app/api/v1/endpoints/products.py`: contiene las operaciones CRUD HTTP
-  adaptadas a `ProductService`.
-- `app/api/v1/endpoints/llm.py`: contiene la operación HTTP para generación
-  de texto, adaptada a `LLMService`.
-- `app/api/v1/endpoints/media.py`: contiene los endpoints HTTP para
-  transcripción de audio y análisis de video, adaptados a
-  `AudioTranscriptionService` y `VideoAnalysisService`.
-
-Para añadir un recurso futuro, se creará otro módulo bajo
-`app/api/v1/endpoints/` y se incluirá su router en `app/api/v1/router.py`. Evitar
-declarar una misma ruta en más de un módulo.
-
-### Endpoints raíz y versiones
-
-- `GET /`: informa del propósito de la API y enlaza a `/docs`.
-- `GET /api/v1/`: redirige a `/api/v1/docs` sin repetir la descripción del servicio.
-
-### Contracts, excepciones y transformaciones
-
-- `schemas/product.py` define los contratos de entrada y salida para el recurso producto.
-- `schemas/llm.py` define los contratos de solicitud y respuesta para generación de texto.
-- `app/domain/exceptions.py` define las excepciones de dominio (ej. `ProductNotFoundError`), que no contienen lógica HTTP.
-- `app/core/exception_handlers.py` transforma excepciones de dominio y del dominio LLM en respuestas HTTP (ej. `ProductNotFoundError → 404 + ErrorResponse`; errores LLM → 502/503/504).
-
-Esta separación mantiene los dominios y servicios agnósticos a HTTP. Los endpoints
-HTTP no tratan excepciones de dominio directamente; las dejan al manejador registrado en `app/main.py`.
-
-### Persistencia, servicios y composición
-
-- `app/services/product_service.py` implementa los casos de uso y coordina repositorio y otros adaptadores.
-- `app/services/llm_service.py` implementa el caso de uso de generación de texto y coordina el puerto `LLMProvider`.
-- `app/repositories/` contiene el protocolo `ProductRepository` y su implementación en memoria.
-- `app/core/dependencies.py` une servicio y repositorio para inyección de dependencias en los endpoints.
-- `app/api/v1/endpoints/products.py` adapta HTTP/JSON a `ProductService` mediante `Depends(get_product_service)`.
-- `app/api/v1/endpoints/llm.py` adapta HTTP/JSON a `LLMService` mediante `Depends(get_llm_service)`.
-
-El servicio no conoce detalles de persistencia y el endpoint solo interactúa con el servicio, lo que facilita el intercambio de mecanismos de almacenamiento.
-
-## Extensión multimodal (sección 8 refinada)
-
-- `app/api/v1/endpoints/media.py` expone contratos HTTP para transcripción y análisis de video.
-- `app/services/media_service.py` orquesta transcripción/análisis sin importar FastAPI ni HTTPX.
-- `app/services/ports/media_provider.py` define los puertos de transcripción, visión y procesamiento de medios.
-- `app/integrations/llm/openai_compatible_audio.py` implementa el protocolo de transcripción con multipart.
-- `app/integrations/llm/openai_compatible_vision.py` envía fotogramas como imágenes a un modelo de visión compatible.
-- `app/integrations/media/ffmpeg_video_processor.py` extrae fotogramas y una pista de audio opcional mediante FFmpeg.
-
-El video no se sube como video nativo al endpoint de chat: se toma una muestra acotada de frames y, si se habilita, se transcribe por separado su audio. El archivo `openai_compatible.py` existente no se reemplaza en este paquete incremental para preservar el soporte Chat + Reasoning añadido en el repositorio.

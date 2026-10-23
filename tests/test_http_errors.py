@@ -8,10 +8,10 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from app.core.dependencies import get_product_service
-from app.main import app
-from app.repositories.in_memory_product_repository import InMemoryProductRepository
-from app.services.product_service import ProductService
+from app.main import create_app
+from app.modules.products.deps import get_product_service
+from app.modules.products.in_memory_repository import InMemoryProductRepository
+from app.modules.products.service import ProductService
 
 
 class ProductHttpContractTests(unittest.TestCase):
@@ -22,11 +22,12 @@ class ProductHttpContractTests(unittest.TestCase):
         # orden de ejecución ni modificar el almacenamiento de desarrollo global.
         self.repository = InMemoryProductRepository()
         self.service = ProductService(self.repository)
-        app.dependency_overrides[get_product_service] = lambda: self.service
-        self.client = TestClient(app)
+        self.app = create_app(enabled=["products"])
+        self.app.dependency_overrides[get_product_service] = lambda: self.service
+        self.client = TestClient(self.app)
 
     def tearDown(self) -> None:
-        app.dependency_overrides.pop(get_product_service, None)
+        self.app.dependency_overrides.pop(get_product_service, None)
         self.client.close()
 
     @staticmethod

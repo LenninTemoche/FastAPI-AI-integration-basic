@@ -21,6 +21,10 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # Módulos activos (separados por comas)
+    enabled_modules: str = "llm,media,products"
+
+    # Proveedor LLM
     llm_provider: Literal["openai_compatible"] = "openai_compatible"
     llm_api_key: SecretStr | None = None
     llm_base_url: AnyHttpUrl | None = None
@@ -56,6 +60,10 @@ class Settings(BaseSettings):
                 "LLM_BASE_URL must use HTTPS unless it points to a loopback host."
             )
         return self
+
+    @property
+    def enabled_modules_list(self) -> list[str]:
+        return [m.strip() for m in self.enabled_modules.split(",") if m.strip()]
 
 
 @lru_cache(maxsize=1)

@@ -2,10 +2,10 @@
 
 import unittest
 
-from app.domain.exceptions import ProductNotFoundError
-from app.domain.models import ProductDraft
-from app.repositories.in_memory_product_repository import InMemoryProductRepository
-from app.services.product_service import ProductService
+from app.modules.products.exceptions import ProductNotFoundError
+from app.modules.products.models import ProductDraft
+from app.modules.products.in_memory_repository import InMemoryProductRepository
+from app.modules.products.service import ProductService
 
 
 class ProductServiceTests(unittest.TestCase):

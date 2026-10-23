@@ -67,7 +67,7 @@ Comprueba la versión instalada de FastAPI:
 python -m pip show fastapi
 ```
 
-Debe indicar la versión `0.143.0`. Si la instalación falla, guarda el mensaje completo del error para diagnosticarlo antes de cambiar versiones o añadir dependencias.
+Debe indicar la versión `0.161.1`. Si la instalación falla, guarda el mensaje completo del error para diagnosticarlo antes de cambiar versiones o añadir dependencias.
 
 `requirements.txt` fija la versión principal de FastAPI y usa el extra `standard` para contar con el comando `fastapi` y las herramientas estándar del servidor. Las dependencias transitivas se resolverán durante la instalación. Una vez verificada la instalación local, se podrá generar un archivo de bloqueo con la resolución concreta del entorno.
 
@@ -87,6 +87,18 @@ FastAPI-AI-integration-basic/
 ```
 
 `app/main.py` es el punto de entrada de esta aplicación mínima. `app/__init__.py` hace explícito que `app` es un paquete Python. No se han creado routers ni capas de servicio todavía porque pertenecen a etapas posteriores.
+
+> **Nota:** En la Fase 1 (arquitectura modular), la estructura evoluciona a:
+> ```text
+> app/
+> ├── main.py                 # create_app(enabled=...)
+> ├── core/                   # config, module, registry, system, schemas
+> └── modules/
+>     ├── llm/                # Generación de texto
+>     ├── media/              # Audio + Video
+>     └── products/           # CRUD demo
+> ```
+> Ver [Arquitectura Fase 1](architecture.md#1-estilo-arquitectónico).
 
 ## 5. Ejecutar la API
 
@@ -113,9 +125,11 @@ Con el servidor activo, abre estas direcciones:
 | URL | Resultado esperado |
 |---|---|
 | `http://127.0.0.1:8000/` | JSON con `message`, `status` y `version`. |
-| `http://127.0.0.1:8000/docs` | Swagger UI; debe listar `GET /` y permitir ejecutarlo. |
+| `http://127.0.0.1:8000/health` | `{"status":"ok"}` — health check. |
+| `http://127.0.0.1:8000/api/v1/modules` | Lista módulos activos. |
+| `http://127.0.0.1:8000/docs` | Swagger UI; debe listar endpoints y permitir ejecutarlos. |
 | `http://127.0.0.1:8000/redoc` | Documentación alternativa generada desde OpenAPI. |
-| `http://127.0.0.1:8000/openapi.json` | Documento JSON con metadatos y la ruta `/`. |
+| `http://127.0.0.1:8000/openapi.json` | Documento JSON con metadatos y todas las rutas. |
 
 La respuesta de `GET /` debe ser similar a:
 
@@ -133,9 +147,11 @@ En Swagger UI, pulsa `GET /`, luego **Try it out** y **Execute**. Confirma que l
 
 - [ ] `py -3.13 --version` confirma Python 3.13.
 - [ ] La instalación de `requirements.txt` termina correctamente dentro de `.venv`.
-- [ ] `python -m pip show fastapi` confirma FastAPI `0.143.0`.
+- [ ] `python -m pip show fastapi` confirma FastAPI `0.161.1`.
 - [ ] `fastapi dev` inicia el servidor sin errores.
 - [ ] `GET /` devuelve HTTP `200` y el JSON esperado.
+- [ ] `GET /health` devuelve HTTP `200` con `{"status":"ok"}`.
+- [ ] `GET /api/v1/modules` devuelve lista de módulos activos.
 - [ ] `/docs`, `/redoc` y `/openapi.json` se abren correctamente.
 - [ ] `.venv/` no aparece entre los archivos que se subirán a Git.
 - [ ] La documentación se actualiza y el cambio se revisa antes de hacer el commit manual.
