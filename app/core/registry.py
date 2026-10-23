@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import logging
 
 from fastapi import FastAPI
@@ -16,11 +17,25 @@ class ModuleLoadError(RuntimeError):
 
 def _load_spec(name: str) -> ModuleSpec:
     path = f"app.modules.{name}.manifest"
+    # 1. Si el paquete del módulo no existe, es "módulo desconocido".
+    package_path = f"app.modules.{name}"
+    try:
+        pkg_spec = importlib.util.find_spec(package_path)
+    except ValueError:
+        pkg_spec = None
+    if pkg_spec is None:
+        raise ModuleLoadError(f"Módulo desconocido: '{name}'")
     try:
         spec = importlib.import_module(path).spec
     except ModuleNotFoundError as exc:
-        if exc.name and exc.name.startswith(f"app.modules.{name}"):
-            raise ModuleLoadError(f"Módulo desconocido: '{name}'") from exc
+        exc_name = exc.name or ""
+        # 2. Si el nombre del módulo faltante está dentro de app., es un error
+        # interno del módulo (import roto), nunca "desconocido".
+        if exc_name.startswith("app."):
+            raise ModuleLoadError(
+                f"Error interno del módulo '{name}': {exc_name}"
+            ) from exc
+        # 3. Si está fuera de app., es una dependencia Python no instalada.
         raise ModuleLoadError(
             f"El módulo '{name}' necesita una dependencia no instalada: {exc.name}"
         ) from exc
@@ -35,6 +50,9 @@ def resolve(enabled: list[str]) -> list[ModuleSpec]:
     visiting: set[str] = set()
 
     def visit(name: str) -> None:
+        name = name.strip()
+        if not name:
+            return
         if name in ordered:
             return
         if name in visiting:
