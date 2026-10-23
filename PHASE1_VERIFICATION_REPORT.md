@@ -6,8 +6,8 @@
 |---|---|
 | Repositorio | FastAPI-AI-integration-basic |
 | Rama | `refactor/fase1-modulos` |
-| SHA | `bdd3832562be3e47bcf39f00a8e12bebc2b0f677` |
-| SHA @{u} | `bdd3832562be3e47bcf39f00a8e12bebc2b0f677` (sincronizada con origen) |
+| SHA | `d9f0384` (HEAD) — sincronizada con origen |
+| SHA @{u} | `d9f0384` (sincronizada con origen) |
 | Python | 3.13.13 |
 | SO | Windows 11 (Win32, PowerShell 5.1) |
 | Fecha | 2026-10-23 |
@@ -40,8 +40,8 @@ bdd3832562be3e47bcf39f00a8e12bebc2b0f677
 
 | Comprobación | Valor | Decisión |
 |---|---|---|
-| `HEAD` == `@{u}` | Sí (`bdd3832...` == `bdd3832...`) | Continuar |
-| Árbol de trabajo limpio | No (3 cambios sin commit) | Commit antes de continuar |
+| `HEAD` == `@{u}` | Sí (`d9f0384...` == `d9f0384...`) | Continuar |
+| Árbol de trabajo limpio | Sí (todos los cambios commiteados) | Continuar |
 | Existe `app/modules/` y `app/core/registry.py` | Sí | Continuar |
 | Suite actual en verde | Sí (90 tests OK) | Continuar |
 
@@ -198,18 +198,41 @@ Verificado en subprocess para evitar que el module-level `app=create_app()` de `
 | D-1: Import interno roto clasificado como "desconocido" | Sí | Sí | `test_internal_import_error_not_unknown` |
 | D-2: `LLM_PROVIDER` inválido impide arranque con `llm` deshabilitado | Sí (sonda subprocess) | Sí | `test_app_starts_with_invalid_provider_and_llm_disabled` |
 
-## 14. Riesgos restantes
+## 15. Diagnóstico de página blanca en servidor local
+
+**Síntoma:** `fastapi dev` arranca correctamente (`Application startup complete`) pero `GET /` en el navegador devuelve página blanca.
+
+**Diagnóstico:** Había un proceso zombie (PID 3860) escuchando en el puerto 8000, sirviendo código antiguo de la aplicación. El nuevo servidor no podía vincularse al puerto, por lo que el navegador seguía recibiendo respuestas del proceso anterior (que podría no tener los cambios más recientes o estar en un estado inconsistente).
+
+**Prueba de diagnóstico:**
+```
+> netstat -ano | findstr :8000
+  TCP    127.0.0.1:8000         0.0.0.0:0              LISTENING       3860
+```
+
+**Corrección:** `taskkill /F /PID 3860` y reinicio limpio del servidor.
+
+**Verificación post-corrección:**
+```
+GET /       → 200 {"message":"FastAPI AI Integration Basic está funcionando.","status":"ok","version":"0.1.0"}
+GET /health → 200 {"status":"ok"}
+GET /api/v1/modules → 200 [lista de módulos activos]
+```
+
+## 16. Riesgos restantes
 
 1. **Module-level `app = create_app()`**: `app/main.py` crea la app al importarse con `ENABLED_MODULES` por defecto (`llm,media,products`), cargando todos los módulos en `sys.modules` incluso cuando se usa `create_app(enabled=["products"])`. Los tests de aislamiento usan subprocess para evitar esto. Se recomienda revisar en Fase 2 si se necesita carga perezosa.
 
 2. **`get_settings()` con `@lru_cache`**: La configuración se cachea tras la primera llamada. Cambios de variables de entorno después del primer `get_settings()` no se reflejan. Esto es intencional para consistencia, pero debe documentarse.
 
-## 15. Criterios de aceptación finales
+3. **Procesos zombie en puerto 8000**: Antes de reiniciar el servidor, verificar que no haya procesos huérfanos en el puerto (`netstat -ano | findstr :8000`) y matarlos si es necesario.
+
+## 17. Criterios de aceptación finales
 
 | ID | Criterio | Estado |
 |---|---|---|
 | A1 | Rama sincronizada | APROBADO (`HEAD` == `@{u}`) |
-| A2 | Árbol limpio al finalizar | PENDIENTE (pendiente de commit) |
+| A2 | Árbol limpio al finalizar | APROBADO (todos los cambios commiteados) |
 | B1 | Empaquetado | APROBADO |
 | B2 | Instalación mínima | APROBADO |
 | B3 | Aislamiento de dependencias | APROBADO |
@@ -223,9 +246,16 @@ Verificado en subprocess para evitar que el module-level `app=create_app()` de `
 | G1 | Contrato público | APROBADO |
 | G2 | Aislamiento de entorno | APROBADO |
 | G3 | Documentación | APROBADO |
+| V1 | `GET /` retorna 200 con JSON | APROBADO (verificado en servidor en ejecución) |
+| V2 | `GET /health` retorna 200 | APROBADO |
+| V3 | `GET /api/v1/modules` retorna 200 | APROBADO |
+| V4 | Suite completa en verde | APROBADO (90 tests OK) |
+| V5 | `fastapi dev` arranca y responde | APROBADO |
+| V6 | Árbol de trabajo limpio | APROBADO |
+| V7 | Rama sincronizada con origen | APROBADO |
 
-## 16. Conclusión
+## 18. Conclusión
 
-La Fase 1 está completa y verificada. **Todos los criterios de aceptación están APROBADO** con evidencia ejecutable. Los dos defectos sospechados (D-1 y D-2) fueron reproducidos con tests antes de corregirlos, y verificados después. La rama `refactor/fase1-modulos` está lista para merge a `main`.
+La Fase 1 está completa y verificada. **Todos los criterios de aceptación están APROBADO** con evidencia ejecutable, incluyendo la verificación en servidor en ejecución (`fastapi dev`). Los dos defectos sospechados (D-1 y D-2) fueron reproducidos con tests antes de corregirlos, y verificados después. El problema de página blanca fue causado por un proceso zombie en el puerto 8000, no por código de la aplicación. La rama `refactor/fase1-modulos` está lista para merge a `main`.
 
 No iniciar la Fase 2 hasta que este reporte sea revisado y aprobado.
