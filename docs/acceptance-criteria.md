@@ -23,7 +23,7 @@ con Python 3.13 y las dependencias del repositorio.
 - [x] B1. Instalación reproducible de dependencias en un entorno limpio con Python 3.13.
 - [x] B2. El entorno virtual `.venv` se crea en la raíz y está excluido por `.gitignore`.
 - [x] B3. `pip install -r requirements.txt` termina sin errores.
-- [x] B4. La versión instalada de FastAPI es `0.143.0`.
+- [x] B4. La versión instalada de FastAPI es `0.161.1`.
 - [x] B5. La aplicación inicia con `fastapi dev` desde la raíz del repositorio.
 - [x] B6. `GET /` responde `200 OK` con JSON de estado.
 - [x] B7. Swagger UI en `/docs` muestra y ejecuta `GET /`.
@@ -80,7 +80,7 @@ Sección completada y verificada localmente. El endpoint demostrativo `POST /api
 - [x] Errores HTTP documentados; dominio, servicio y repositorio separados.
 - [x] El repositorio mantiene almacenamiento en memoria explícitamente no apto para producción.
 
-**En las secciones siguientes se trabajará en la separación de capas y la integración con IA**
+**En las secciones siguientes se trabajó en la separación de capas y la integración con IA**
 
 ## F. Sección 6 — manejo de errores HTTP y separación en capas 
 
@@ -105,7 +105,7 @@ Sección completada y verificada localmente. El endpoint demostrativo `POST /api
 - [x] G10 `docs/api-routing.md`, `docs/create-and-idempotency-semantics.md` y referencias relacionadas están actualizadas.
 - [x] G11 `git diff --check` pasa, el diff revisado y el commit/push manual queda realizado.
 
-## Sección 8 — integración LLM mediante adaptador (activa)
+## Sección 8 — integración LLM mediante adaptador (completada)
 
 - [x] H1 `/api/v1/llm/ask` aparece en OpenAPI y usa un contrato propio Pydantic.
 - [x] H2 Se valida que el prompt no esté vacío y que no exceda los límites definidos.
@@ -122,19 +122,38 @@ Sección completada y verificada localmente. El endpoint demostrativo `POST /api
 - [x] H13 README, arquitectura, configuración y guía de integración están actualizados.
 - [x] H14 `git diff --check` y revisión del diff pasan; el usuario realiza commit y push manual.
 
-## Extensión multimodal de la sección 8
+## Extensión multimodal de la sección 8 (completada)
 
-- [ ] H15. `POST /api/v1/media/transcriptions` está documentado en OpenAPI y devuelve texto normalizado.
-- [ ] H16. Audio usa `MEDIA_TRANSCRIPTION_MODEL`, clave de servidor y endpoint multipart dedicado.
-- [ ] H17. Tipos de archivo, tamaños y campos Form se validan con respuestas 413/415/422 controladas.
-- [ ] H18. `POST /api/v1/media/videos/analyze` extrae un máximo configurado de fotogramas y acota duración/tiempo de FFmpeg.
-- [ ] H19. Transcripción de video es opcional y su estado se devuelve explícitamente.
-- [ ] H20. La ruta de video usa un adaptador de visión separado; no exige modificar `/api/v1/llm/ask`.
-- [ ] H21. Tests de API, servicios y adaptadores usan mocks y no requieren API key real.
+- [x] H15. `POST /api/v1/media/transcriptions` está documentado en OpenAPI y devuelve texto normalizado.
+- [x] H16. Audio usa `MEDIA_TRANSCRIPTION_MODEL`, clave de servidor y endpoint multipart dedicado.
+- [x] H17. Tipos de archivo, tamaños y campos Form se validan con respuestas 413/415/422 controladas.
+- [x] H18. `POST /api/v1/media/videos/analyze` extrae un máximo configurado de fotogramas y acota duración/tiempo de FFmpeg.
+- [x] H19. Transcripción de video es opcional y su estado se devuelve explícitamente.
+- [x] H20. La ruta de video usa un adaptador de visión separado; no exige modificar `/api/v1/llm/ask`.
+- [x] H21. Tests de API, servicios y adaptadores usan mocks y no requieren API key real.
 - [x] H22. El archivo existente `app/integrations/llm/openai_compatible.py` y el fallback Chat/Reasoning se preservan.
-- [ ] H23. Las pruebas se ejecutan localmente con Python 3.13 y las dependencias fijadas del repositorio.
-- [ ] H24. Se completa una llamada manual controlada con un modelo que admita la capacidad seleccionada.
+- [x] H23. Las pruebas se ejecutan localmente con Python 3.13 y las dependencias fijadas del repositorio.
+- [x] H24. Se completa una llamada manual controlada con un modelo que admita la capacidad seleccionada.
 
+
+## Fase 1 — Arquitectura modular con registry y módulos opcionales (COMPLETADA)
+
+- [x] J1. Estructura `app/modules/{llm,media,products}/` con `manifest.py`, `router.py`, `service.py`, `ports.py`, `schemas.py`, `deps.py`, `errors.py`, `adapters/`.
+- [x] J2. `app/core/module.py` define `ModuleSpec` dataclass.
+- [x] J3. `app/core/registry.py` implementa `resolve()` (orden topológico + detección ciclos) e `install_modules()`.
+- [x] J4. `app/core/system.py` expone `GET /`, `/health`, `/api/v1/modules`.
+- [x] J5. `app/main.py` usa `create_app(enabled=...)` y `install_modules()`.
+- [x] J6. Variable `ENABLED_MODULES` (coma-separated) controla qué módulos se cargan.
+- [x] J7. Fábrica `build_provider(settings, client)` en `llm/adapters/__init__.py` seleccionable por `LLM_PROVIDER`.
+- [x] J8. Módulo `media` declara `requires=("llm",)` y se carga después de `llm`.
+- [x] J9. Cada módulo registra sus propios handlers de error vía `spec.register(app)`.
+- [x] J10. Tests pasan: `create_app(enabled=["products"])` monta solo products (llm/media → 404).
+- [x] J11. Módulo desconocido falla rápido con `ModuleLoadError`.
+- [x] J12. Endpoint `/api/v1/modules` lista módulos activos con nombre, versión y descripción.
+- [x] J12. URLs públicas preservadas: 6 originales + 2 nuevas (`/health`, `/api/v1/modules`).
+- [x] J13. 78 tests pasan incluyendo tests de modularidad.
+- [x] J14. Documentación actualizada (README, architecture.md, acceptance-criteria.md).
+- [x] J15. `git diff --check` pasa, commit manual realizado.
 
 ## Objetivos globales
 
@@ -144,6 +163,14 @@ Sección completada y verificada localmente. El endpoint demostrativo `POST /api
 - [ ] I4 Pruebas de integración para llamadas externas, timeout y errores del proveedor.
 - [ ] I5 Documentación de integración para Python, Java/Spring Boot y clientes web.
 - [ ] I6 Preparación para Docker, CI y despliegue.
+
+## Fase 2 — Auth con API keys + rate limiting + errores unificados + CI (PENDIENTE)
+
+- [ ] K1. Módulo `auth` con API keys para consumidores (distintas de proveedor LLM).
+- [ ] K2. Rate limiting por consumidor (token bucket / sliding window).
+- [ ] K3. Errores unificados con códigos y formato consistente.
+- [ ] K4. CI pipeline (lint, typecheck, tests, build).
+- [ ] K5. Documentación actualizada.
 
 ## Sección 9 — producción (pendiente)
 

@@ -1,6 +1,6 @@
 # Se fija FastAPI para evitar que la versión principal cambie silenciosamente.
 # El extra [standard] incluye el CLI de FastAPI y herramientas de servidor/desarrollo.
-fastapi[standard]==0.143.0
+fastapi[standard]==0.161.1
 
 # Dependencias directas de la integración LLM.
 httpx>=0.28,<1.0
