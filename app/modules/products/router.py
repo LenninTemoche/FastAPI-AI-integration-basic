@@ -15,7 +15,7 @@ from app.modules.products.schemas import ProductCreate, ProductListResponse, Pro
 from app.modules.products.service import ProductService
 from .deps import get_product_service
 
-router = APIRouter(tags=["Productos"])
+router = APIRouter()
 
 PRODUCT_NOT_FOUND_RESPONSE = {
     status.HTTP_404_NOT_FOUND: {

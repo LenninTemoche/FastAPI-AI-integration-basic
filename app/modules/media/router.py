@@ -17,7 +17,7 @@ from app.modules.media.ports import (
 )
 from .deps import get_audio_transcription_service, get_video_analysis_service
 
-router = APIRouter(tags=["Audio y video"])
+router = APIRouter()
 
 AUDIO_MIME_TYPES = {
     ".flac": "audio/flac",

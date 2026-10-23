@@ -9,7 +9,7 @@ from app.modules.llm.schemas import LLMAskRequest, LLMAskResponse, LLMUsageRespo
 from app.modules.llm.service import LLMService
 from .deps import get_llm_service
 
-router = APIRouter(tags=["IA generativa"])
+router = APIRouter()
 
 LLM_ERROR_RESPONSES = {
     status.HTTP_502_BAD_GATEWAY: {
