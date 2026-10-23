@@ -63,21 +63,21 @@ app/
 
 ```mermaid
 flowchart TD
-    C[Clientes HTTP/JSON<br/>Web · móvil · Java · Python · ML] --> API[FastAPI<br/>Module Registry]
-    API --> SCH[Esquemas Pydantic<br/>contratos y validación]
-    API --> SYS[app/core/system<br/>GET / · /health · /modules]
-    API --> MODS[app/modules/<name>]
+    C[Clientes HTTP/JSON<br/>Web · móvil · Java · Python · ML] --> MAIN[app/main.py<br/>create_app(enabled=...) + lifespan]
+    MAIN --> SYS[app/core/system.py<br/>GET / · /health · /modules]
+    MAIN --> REG[app/core/registry.py<br/>resolve + install_modules]
+    MAIN -.->|importlib| MODS[app/modules/<name>/]
     MODS --> LLM[llm/<br/>service · ports · adapters]
     MODS --> MEDIA[media/<br/>service · ports · adapters]
     MODS --> PROD[products/<br/>service · repo · in-memory]
+    MEDIA --> LLM
     SYS -.->|OpenAPI| DOCS[/docs · /openapi.json]
-    LIFESPAN[httpx.AsyncClient<br/>shared pool] --> LLM
-    LIFESPAN --> MEDIA
+    MAIN -.->|lifespan| LIFESPAN[httpx.AsyncClient<br/>shared pool]
 
     style C fill:#1a202c,stroke:#0d1117,color:#f1f5f9
-    style API fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style SCH fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style MAIN fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style SYS fill:#2d3748,stroke:#1a202c,color:#f1f5f9
+    style REG fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style MODS fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style LLM fill:#2d3748,stroke:#1a202c,color:#f1f5f9
     style MEDIA fill:#2d3748,stroke:#1a202c,color:#f1f5f9
@@ -321,12 +321,12 @@ def test_modules_endpoint_lists_enabled(self):
 
 ```mermaid
 flowchart TD
-    CLIENT[Clients HTTP/JSON<br/>Web · móvil · Python · Java · ML] --> MAIN[app/main.py<br/>create_app(enabled=...)]
+    CLIENT[Clients HTTP/JSON<br/>Web · móvil · Python · Java · ML] --> MAIN[app/main.py<br/>create_app(enabled=...) + lifespan]
     MAIN --> SYSTEM[app/core/system.py<br/>GET / · /health · /api/v1/modules]
-    MAIN --> REGISTRY[app/core/registry.py<br/>install_modules]
-    REGISTRY --> LLM[app/modules/llm/]
-    REGISTRY --> MEDIA[app/modules/media/]
-    REGISTRY --> PROD[app/modules/products/]
+    MAIN --> REGISTRY[app/core/registry.py<br/>resolve + install_modules]
+    MAIN -.->|importlib| LLM[app/modules/llm/]
+    MAIN -.->|importlib| MEDIA[app/modules/media/]
+    MAIN -.->|importlib| PROD[app/modules/products/]
 
     subgraph LLM_MOD [app/modules/llm/]
         LLM_MAN[manifest.py<br/>ModuleSpec]
@@ -367,15 +367,16 @@ flowchart TD
     end
 
     subgraph CORE [app/core/]
-        CORE_CONF[config.py<br/>Settings + enabled_modules]
+        CORE_CONF[config.py<br/>Settings + enabled_modules_list]
         CORE_MOD[module.py<br/>ModuleSpec dataclass]
         CORE_REG[registry.py<br/>resolve + install_modules]
         CORE_SYS[system.py<br/>system router]
-        CORE_SCH[schemas.py<br/>ErrorResponse]
+        CORE_SCH[schemas.py<br/>ErrorResponse compartido]
     end
 
+    MEDIA_MOD --> LLM_MOD
+    MAIN -.->|lifespan| HTTP_CLIENT[httpx.AsyncClient<br/>shared pool]
     CLIENT -.->|OpenAPI| DOCS[/docs · /openapi.json]
-    REGISTRY -.->|lifespan| HTTP_CLIENT[httpx.AsyncClient<br/>shared pool]
 
     style CLIENT fill:#1a202c,stroke:#0d1117,color:#f1f5f9
     style MAIN fill:#2d3748,stroke:#1a202c,color:#f1f5f9

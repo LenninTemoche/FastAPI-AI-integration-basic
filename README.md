@@ -32,12 +32,12 @@ La arquitectura es un **monolito modular**: comparte un proceso de despliegue en
 
 ```mermaid
 flowchart TD
-    CLIENT[Clients<br/>Web · móvil · Python · Java] --> MAIN[app/main.py<br/>create_app(enabled=...)]
+    CLIENT[Clients<br/>Web · móvil · Python · Java] --> MAIN[app/main.py<br/>create_app(enabled=...) + lifespan]
     MAIN --> SYSTEM[app/core/system.py<br/>GET / · /health · /api/v1/modules]
-    MAIN --> REGISTRY[app/core/registry.py<br/>install_modules]
-    REGISTRY --> LLM[app/modules/llm/]
-    REGISTRY --> MEDIA[app/modules/media/]
-    REGISTRY --> PROD[app/modules/products/]
+    MAIN --> REGISTRY[app/core/registry.py<br/>install_modules + resolve]
+    MAIN -.->|importlib| LLM[app/modules/llm/]
+    MAIN -.->|importlib| MEDIA[app/modules/media/]
+    MAIN -.->|importlib| PROD[app/modules/products/]
 
     subgraph LLM_MOD [app/modules/llm/]
         LLM_MAN[manifest.py<br/>ModuleSpec]
@@ -71,22 +71,23 @@ flowchart TD
         PROD_DEPS[deps.py<br/>get_product_service]
         PROD_ERR[errors.py<br/>404 handler]
         PROD_REPO[repository.py<br/>ProductRepository protocol]
-        PROD_MEM[repository.py<br/>InMemoryProductRepository]
+        PROD_MEM[in_memory_repository.py<br/>InMemoryProductRepository]
         PROD_MODS[models.py<br/>Product/ProductDraft]
         PROD_EXC[exceptions.py<br/>ProductNotFoundError]
         PROD_SCH[schemas.py<br/>ProductCreate/Read/List]
     end
 
     subgraph CORE [app/core/]
-        CORE_CONF[config.py<br/>Settings + enabled_modules]
+        CORE_CONF[config.py<br/>Settings + enabled_modules_list]
         CORE_MOD[module.py<br/>ModuleSpec dataclass]
         CORE_REG[registry.py<br/>resolve + install_modules]
         CORE_SYS[system.py<br/>system router]
-        CORE_SCH[schemas.py<br/>ErrorResponse]
+        CORE_SCH[schemas.py<br/>ErrorResponse compartido]
     end
 
+    MEDIA_MOD --> LLM_MOD
+    MAIN -.->|lifespan| HTTP_CLIENT[httpx.AsyncClient<br/>shared pool]
     CLIENT -.->|OpenAPI| DOCS[/docs · /openapi.json]
-    REGISTRY -.->|lifespan| HTTP_CLIENT[httpx.AsyncClient<br/>shared pool]
 
     style CLIENT fill:#1a202c,stroke:#4a5568,color:#f1f5f9
     style MAIN fill:#2d3748,stroke:#1a202c,color:#f1f5f9
