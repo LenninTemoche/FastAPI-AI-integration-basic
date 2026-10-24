@@ -5,7 +5,7 @@ Este módulo nunca imprime ni serializa la API key.
 """
 
 from functools import lru_cache
-from typing import Annotated, Literal
+from typing import Annotated
 
 from pydantic import AnyHttpUrl, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,8 +24,8 @@ class Settings(BaseSettings):
     # Módulos activos (separados por comas)
     enabled_modules: str = "llm,media,products"
 
-    # Proveedor LLM
-    llm_provider: Literal["openai_compatible"] = "openai_compatible"
+    # Proveedor LLM (validado en la fábrica, no en Settings)
+    llm_provider: str = "openai_compatible"
     llm_api_key: SecretStr | None = None
     llm_base_url: AnyHttpUrl | None = None
     llm_model: Annotated[str | None, Field(min_length=1, max_length=200)] = None

@@ -30,89 +30,24 @@ La arquitectura es un **monolito modular**: comparte un proceso de despliegue en
 
 ## Arquitectura
 
+Monolito modular: un **núcleo mínimo** (`app/core/`) y **módulos opcionales**
+(`app/modules/<nombre>/`) que se activan con la variable `ENABLED_MODULES`.
+Solo se importan y se montan los módulos habilitados.
+
 ```mermaid
 flowchart TD
-    CLIENT[Clients<br/>Web · móvil · Python · Java] --> MAIN[app/main.py<br/>create_app(enabled=...) + lifespan]
-    MAIN --> SYSTEM[app/core/system.py<br/>GET / · /health · /api/v1/modules]
-    MAIN --> REGISTRY[app/core/registry.py<br/>install_modules + resolve]
-    MAIN -.->|importlib| LLM[app/modules/llm/]
-    MAIN -.->|importlib| MEDIA[app/modules/media/]
-    MAIN -.->|importlib| PROD[app/modules/products/]
-
-    subgraph LLM_MOD [app/modules/llm/]
-        LLM_MAN[manifest.py<br/>ModuleSpec]
-        LLM_ROUTER[router.py<br/>POST /ask]
-        LLM_SVC[service.py<br/>LLMService]
-        LLM_DEPS[deps.py<br/>get_llm_service]
-        LLM_ERR[errors.py<br/>502/503/504 handlers]
-        LLM_PORTS[ports.py<br/>LLMProvider protocol]
-        LLM_SCH[schemas.py<br/>LLMAskRequest/Response]
-        LLM_ADAPTS[adapters/__init__.py<br/>build_provider factory]
-        LLM_OPENAI[adapters/openai_compatible.py<br/>Chat Completions]
-    end
-
-    subgraph MEDIA_MOD [app/modules/media/]
-        MEDIA_MAN[manifest.py<br/>ModuleSpec<br/>requires=llm]
-        MEDIA_ROUTER[router.py<br/>POST /transcriptions<br/>POST /videos/analyze]
-        MEDIA_SVC[service.py<br/>Audio/Video Services]
-        MEDIA_DEPS[deps.py<br/>get_audio/video_service]
-        MEDIA_ERR[errors.py<br/>413/415/422/502/503/504]
-        MEDIA_PORTS[ports.py<br/>Audio/Video/Vision protocols]
-        MEDIA_SCH[schemas.py<br/>Media/Video responses]
-        MEDIA_FFMPEG[adapters/ffmpeg_video_processor.py]
-        MEDIA_AUDIO[adapters/openai_audio.py<br/>/audio/transcriptions]
-        MEDIA_VISION[adapters/openai_vision.py<br/>Chat Completions + frames]
-    end
-
-    subgraph PROD_MOD [app/modules/products/]
-        PROD_MAN[manifest.py<br/>ModuleSpec]
-        PROD_ROUTER[router.py<br/>CRUD /products]
-        PROD_SVC[service.py<br/>ProductService]
-        PROD_DEPS[deps.py<br/>get_product_service]
-        PROD_ERR[errors.py<br/>404 handler]
-        PROD_REPO[repository.py<br/>ProductRepository protocol]
-        PROD_MEM[in_memory_repository.py<br/>InMemoryProductRepository]
-        PROD_MODS[models.py<br/>Product/ProductDraft]
-        PROD_EXC[exceptions.py<br/>ProductNotFoundError]
-        PROD_SCH[schemas.py<br/>ProductCreate/Read/List]
-    end
-
-    subgraph CORE [app/core/]
-        CORE_CONF[config.py<br/>Settings + enabled_modules_list]
-        CORE_MOD[module.py<br/>ModuleSpec dataclass]
-        CORE_REG[registry.py<br/>resolve + install_modules]
-        CORE_SYS[system.py<br/>system router]
-        CORE_SCH[schemas.py<br/>ErrorResponse compartido]
-    end
-
-    MEDIA_MOD --> LLM_MOD
-    MAIN -.->|lifespan| HTTP_CLIENT[httpx.AsyncClient<br/>shared pool]
-    CLIENT -.->|OpenAPI| DOCS[/docs · /openapi.json]
-
-    style CLIENT fill:#1a202c,stroke:#4a5568,color:#f1f5f9
-    style MAIN fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style SYSTEM fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style REGISTRY fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style LLM_MOD fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style MEDIA_MOD fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style PROD_MOD fill:#2d3748,stroke:#1a202c,color:#f1f5f9
-    style CORE fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-    style HTTP_CLIENT fill:#4a5568,stroke:#2d3748,color:#f1f5f9
-```
-
-## Arquitectura resumida
-
-```text
-Consumidores HTTP/JSON
-          |
-          v
-FastAPI + Module Registry
-    |                |
-    v                v
-app/core/system   app/modules/
-- GET /           - llm/        (generación texto)
-- /health         - media/      (audio + video)
-- /api/v1/modules - products/   (CRUD demo)
+    CLIENT["Clientes HTTP/JSON"] --> MAIN["app/main.py<br/>create_app()"]
+    MAIN --> SYS["app/core/system.py<br/>GET / · /health · /api/v1/modules"]
+    MAIN --> REG["app/core/registry.py<br/>carga ENABLED_MODULES"]
+    REG --> LLM["modules/llm<br/>/api/v1/llm"]
+    REG --> MEDIA["modules/media<br/>/api/v1/media"]
+    REG --> PROD["modules/products<br/>/api/v1/products"]
+    LLM --> LLMP["LLMProvider (puerto)"]
+    LLMP --> LLMA["adapters/openai_compatible<br/>local o API key"]
+    MEDIA --> MP["Puertos de audio y visión"]
+    MP --> MA["adapters: Whisper, visión, FFmpeg"]
+    PROD --> PR["ProductRepository (puerto)"]
+    PR --> PM["Repositorio en memoria"]
 ```
 
 Cada módulo exporta un `ModuleSpec` en `manifest.py` con:
