@@ -12,14 +12,14 @@ import sys
 import textwrap
 import types
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock, call
 
 from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
 from app.core.module import ModuleSpec
 from app.core.registry import ModuleLoadError, install_modules, resolve  # noqa: E402
-from app.main import create_app  # noqa: E402
+from app.factory import create_app  # noqa: E402
 
 
 class RegistryResolutionTests(unittest.TestCase):
@@ -73,9 +73,9 @@ class RegistryResolutionTests(unittest.TestCase):
              patch("importlib.import_module", side_effect=fake_import):
             with self.assertRaises(ModuleLoadError) as ctx:
                 resolve(["_broken_d1"])
-        msg = str(ctx.exception)
-        self.assertNotIn("desconocido", msg.lower())
-        self.assertIn("interno", msg.lower())
+            msg = str(ctx.exception)
+            self.assertNotIn("desconocido", msg.lower())
+            self.assertIn("interno", msg.lower())
 
     def test_circular_dependency(self):
         fake_spec = types.SimpleNamespace(
@@ -183,7 +183,7 @@ class RegistryResolutionTests(unittest.TestCase):
 import os
 os.environ["ENABLED_MODULES"] = "products"
 import sys
-from app.main import create_app
+from app.factory import create_app
 app = create_app(enabled=["products"])
 after = {m for m in sys.modules if m.startswith("app.modules.")}
 print("products:", "app.modules.products" in after)
@@ -237,6 +237,232 @@ class D2ProviderValidationTests(unittest.TestCase):
         resp = client.post("/api/v1/llm/ask", json={"prompt": "hola"})
         # 503 porque no hay proveedor real configurado, pero no es error de configuración
         self.assertIn(resp.status_code, (200, 503))
+
+
+class RegisterInvocationTests(unittest.TestCase):
+    """D8: register se invoca exactamente una vez por módulo."""
+
+    def test_register_invoked_once_per_module(self):
+        """install_modules llama a spec.register exactamente una vez por módulo habilitado.
+        
+        Verificamos que los exception handlers se registran correctamente en app.exception_handlers.
+        """
+        app = create_app(enabled=["llm", "media", "products"])
+        
+        # Verificar que los handlers de llm están registrados
+        from app.modules.llm.ports import (
+            LLMNotConfiguredError,
+            LLMProviderRateLimitError,
+            LLMProviderResponseError,
+            LLMProviderTimeoutError,
+            LLMProviderUnavailableError,
+        )
+        for exc in [LLMNotConfiguredError, LLMProviderRateLimitError,
+                    LLMProviderResponseError, LLMProviderTimeoutError,
+                    LLMProviderUnavailableError]:
+            self.assertIn(exc, app.exception_handlers)
+
+        # Verificar que los handlers de media están registrados
+        from app.modules.media.ports import (
+            UnsupportedMediaTypeError,
+            MediaPayloadTooLargeError,
+            MediaInputError,
+            MediaProcessorUnavailableError,
+            MediaProcessingTimeoutError,
+        )
+        for exc in [UnsupportedMediaTypeError, MediaPayloadTooLargeError,
+                    MediaInputError, MediaProcessorUnavailableError,
+                    MediaProcessingTimeoutError]:
+            self.assertIn(exc, app.exception_handlers)
+
+        # Verificar que los handlers de products están registrados
+        from app.modules.products.exceptions import ProductNotFoundError
+        self.assertIn(ProductNotFoundError, app.exception_handlers)
+
+    def test_register_not_called_for_disabled_module(self):
+        """register NO se llama para módulos deshabilitados (no hay handlers)."""
+        app = create_app(enabled=["products"])
+        
+        from app.modules.llm.ports import LLMNotConfiguredError
+        from app.modules.media.ports import UnsupportedMediaTypeError
+        
+        self.assertNotIn(LLMNotConfiguredError, app.exception_handlers)
+        self.assertNotIn(UnsupportedMediaTypeError, app.exception_handlers)
+        # Pero products sí
+        from app.modules.products.exceptions import ProductNotFoundError
+        self.assertIn(ProductNotFoundError, app.exception_handlers)
+
+
+class BuildProviderTests(unittest.TestCase):
+    """E1: pruebas deterministas para build_provider con normalización."""
+
+    def setUp(self):
+        get_settings.cache_clear()
+
+    def tearDown(self):
+        get_settings.cache_clear()
+        os.environ.pop("LLM_PROVIDER", None)
+
+    def test_build_provider_openai_compatible_lowercase(self):
+        """build_provider acepta 'openai_compatible' en minúsculas."""
+        from app.modules.llm.adapters import build_provider
+        from app.modules.llm.adapters.openai_compatible import OpenAICompatibleChatProvider
+        import httpx
+        
+        os.environ["LLM_PROVIDER"] = "openai_compatible"
+        settings = get_settings()
+        client = httpx.AsyncClient()
+        
+        provider = build_provider(settings, client)
+        self.assertIsInstance(provider, OpenAICompatibleChatProvider)
+
+    def test_build_provider_openai_compatible_uppercase(self):
+        """build_provider normaliza 'OPENAI_COMPATIBLE' a minúsculas."""
+        from app.modules.llm.adapters import build_provider
+        from app.modules.llm.adapters.openai_compatible import OpenAICompatibleChatProvider
+        import httpx
+        
+        os.environ["LLM_PROVIDER"] = "OPENAI_COMPATIBLE"
+        settings = get_settings()
+        client = httpx.AsyncClient()
+        
+        provider = build_provider(settings, client)
+        self.assertIsInstance(provider, OpenAICompatibleChatProvider)
+
+    def test_build_provider_openai_compatible_mixed_case(self):
+        """build_provider normaliza 'OpenAI_Compatible' a minúsculas."""
+        from app.modules.llm.adapters import build_provider
+        from app.modules.llm.adapters.openai_compatible import OpenAICompatibleChatProvider
+        import httpx
+        
+        os.environ["LLM_PROVIDER"] = "OpenAI_Compatible"
+        settings = get_settings()
+        client = httpx.AsyncClient()
+        
+        provider = build_provider(settings, client)
+        self.assertIsInstance(provider, OpenAICompatibleChatProvider)
+
+    def test_build_provider_openai_compatible_with_spaces(self):
+        """build_provider hace strip de espacios."""
+        from app.modules.llm.adapters import build_provider
+        from app.modules.llm.adapters.openai_compatible import OpenAICompatibleChatProvider
+        import httpx
+        
+        os.environ["LLM_PROVIDER"] = "  openai_compatible  "
+        settings = get_settings()
+        client = httpx.AsyncClient()
+        
+        provider = build_provider(settings, client)
+        self.assertIsInstance(provider, OpenAICompatibleChatProvider)
+
+    def test_build_provider_unknown_raises_not_configured(self):
+        """Proveedor desconocido lanza LLMNotConfiguredError."""
+        from app.modules.llm.adapters import build_provider
+        from app.modules.llm.ports import LLMNotConfiguredError
+        import httpx
+        
+        os.environ["LLM_PROVIDER"] = "desconocido"
+        settings = get_settings()
+        client = httpx.AsyncClient()
+        
+        with self.assertRaises(LLMNotConfiguredError):
+            build_provider(settings, client)
+
+
+class ApiKeyLeakageTests(unittest.TestCase):
+    """E2: el VALOR de la API key nunca aparece en respuestas ni logs."""
+
+    def test_503_does_not_contain_api_key_value(self):
+        """Error 503 no contiene el valor de la API key."""
+        os.environ["LLM_PROVIDER"] = "openai_compatible"
+        os.environ["LLM_API_KEY"] = "sk-secret-key-12345"
+        
+        app = create_app(enabled=["llm"])
+        client = TestClient(app)
+        resp = client.post("/api/v1/llm/ask", json={"prompt": "hola"})
+        
+        self.assertEqual(resp.status_code, 503)
+        body = resp.json()
+        self.assertIn("detail", body)
+        # El valor de la API key NO debe aparecer en el detalle
+        self.assertNotIn("sk-secret-key-12345", body["detail"])
+        self.assertNotIn("secret", body["detail"].lower())
+
+
+class EnabledModulesEmptyTests(unittest.TestCase):
+    """ENABLED_MODULES vacío: comportamiento documentado y probado."""
+
+    def test_enabled_modules_empty_list(self):
+        """ENABLED_MODULES=[] → app solo con rutas del sistema (/ , /health, /api/v1/modules)."""
+        app = create_app(enabled=[])
+        client = TestClient(app)
+        
+        # Rutas del sistema funcionan
+        self.assertEqual(client.get("/").status_code, 200)
+        self.assertEqual(client.get("/health").status_code, 200)
+        self.assertEqual(client.get("/api/v1/modules").status_code, 200)
+        
+        # No hay módulos montados
+        self.assertEqual(client.get("/api/v1/products").status_code, 404)
+        self.assertEqual(client.post("/api/v1/llm/ask", json={"prompt": "hola"}).status_code, 404)
+        self.assertEqual(
+            client.post("/api/v1/media/transcriptions", files={"file": ("x.wav", b"x", "audio/wav")}).status_code,
+            404
+        )
+
+    def test_enabled_modules_empty_env(self):
+        """ENABLED_MODULES='' en entorno → app solo con rutas del sistema."""
+        import os
+        os.environ["ENABLED_MODULES"] = ""
+        get_settings.cache_clear()
+        
+        try:
+            app = create_app()
+            client = TestClient(app)
+            
+            self.assertEqual(client.get("/").status_code, 200)
+            self.assertEqual(client.get("/health").status_code, 200)
+            self.assertEqual(client.get("/api/v1/modules").status_code, 200)
+            self.assertEqual(client.get("/api/v1/products").status_code, 404)
+        finally:
+            get_settings.cache_clear()
+            os.environ.pop("ENABLED_MODULES", None)
+
+
+class OpenApiDiffTests(unittest.TestCase):
+    """G1: diff OpenAPI contra línea base pre-Fase 1."""
+
+    def test_openapi_diff_only_expected_endpoints(self):
+        """Diff OpenAPI: solo /health, /api/v1/modules y tags son nuevos."""
+        # Obtener OpenAPI actual
+        app = create_app()
+        client = TestClient(app)
+        current_schema = client.get("/openapi.json").json()
+        current_paths = set(current_schema["paths"].keys())
+        
+        # Rutas esperadas actuales
+        expected_current = {
+            "/",
+            "/health",
+            "/api/v1/modules",
+            "/api/v1/llm/ask",
+            "/api/v1/media/transcriptions",
+            "/api/v1/media/videos/analyze",
+            "/api/v1/products",
+            "/api/v1/products/{product_id}",
+        }
+        
+        # Verificar que las rutas actuales coinciden con lo esperado
+        self.assertEqual(current_paths, expected_current)
+        
+        # Verificar que /health y /api/v1/modules son nuevos (no estaban en v0)
+        # y que los tags están presentes
+        for path in ["/api/v1/llm/ask", "/api/v1/media/transcriptions", "/api/v1/media/videos/analyze"]:
+            self.assertIn("tags", current_schema["paths"][path]["post"])
+        
+        # Verificar que no hay rutas inesperadas
+        unexpected = current_paths - expected_current
+        self.assertEqual(unexpected, set(), f"Rutas inesperadas: {unexpected}")
 
 
 if __name__ == "__main__":
