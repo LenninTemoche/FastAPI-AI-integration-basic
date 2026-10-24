@@ -14,7 +14,7 @@ El objetivo es que la API pueda crecer sin acoplar sus rutas HTTP a la lógica d
 
 ```text
 app/
-├── main.py                                    # create_app(enabled=...) + lifespan
+├── main.py                                    # create_app(enabled=...) + lifespan con httpx.AsyncClient
 ├── core/
 │   ├── config.py                              # Settings + enabled_modules_list + LLM_PROVIDER
 │   ├── module.py                              # ModuleSpec dataclass
@@ -26,7 +26,7 @@ app/
     │   ├── manifest.py                        # ModuleSpec (register=errors)
     │   ├── router.py                          # POST /ask
     │   ├── service.py                         # LLMService
-    │   ├── deps.py                            # get_llm_service (inyecta proveedor)
+    │   ├── deps.py                            # get_llm_service (inyecta proveedor + HTTP client)
     │   ├── errors.py                          # 502/503/504 handlers
     │   ├── ports.py                           # LLMProvider protocol + errores dominio
     │   ├── schemas.py                         # LLMAskRequest/Response/Usage
@@ -37,7 +37,7 @@ app/
     │   ├── manifest.py                        # ModuleSpec (requires=llm)
     │   ├── router.py                          # POST /transcriptions, /videos/analyze
     │   ├── service.py                         # Audio/Video Analysis Services
-    │   ├── deps.py                            # get_audio/video_service
+    │   ├── deps.py                            # get_audio/video_service (inyectan HTTP client)
     │   ├── errors.py                          # 413/415/422/502/503/504 handlers
     │   ├── ports.py                           # Audio/Video/Vision protocols
     │   ├── schemas.py                         # Media/Video responses
@@ -72,7 +72,7 @@ flowchart TD
     MODS --> PROD[products/<br/>service · repo · in-memory]
     MEDIA --> LLM
     SYS -.->|OpenAPI| DOCS[/docs · /openapi.json]
-    MAIN -.->|lifespan| LIFESPAN[httpx.AsyncClient<br/>shared pool]
+    MAIN -.->|lifespan| LIFESPAN[httpx.AsyncClient<br/>shared pool<br/>creado solo si llm/media habilitados]
 
     style C fill:#1a202c,stroke:#0d1117,color:#f1f5f9
     style MAIN fill:#2d3748,stroke:#1a202c,color:#f1f5f9
@@ -215,10 +215,28 @@ Validación: `LLM_BASE_URL` debe ser HTTPS salvo loopback (`localhost`, `127.0.0
 `app/main.py` crea la app y llama a `install_modules`:
 
 ```python
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    settings = get_settings()
+    enabled = settings.enabled_modules_list
+    needs_http = any(m in ("llm", "media") for m in enabled)
+
+    async with AsyncExitStack() as stack:
+        if needs_http:
+            http_client = httpx.AsyncClient(timeout=settings.llm_timeout_seconds)
+            await stack.enter_async_context(http_client)
+            app.state.llm_http_client = http_client
+
+        for spec in app.state.modules.values():
+            if spec.lifespan:
+                await stack.enter_async_context(spec.lifespan(app))
+        yield
+
+
 def create_app(enabled: list[str] | None = None) -> FastAPI:
     settings = get_settings()
     app = FastAPI(..., lifespan=lifespan)
-    app.include_router(system.router)  # GET /, /health, /api/v1/modules
+    app.include_router(system.router)
     install_modules(app, enabled if enabled is not None else settings.enabled_modules_list)
     return app
 ```
@@ -375,7 +393,7 @@ flowchart TD
     end
 
     MEDIA_MOD --> LLM_MOD
-    MAIN -.->|lifespan| HTTP_CLIENT[httpx.AsyncClient<br/>shared pool]
+    MAIN -.->|lifespan| HTTP_CLIENT[httpx.AsyncClient<br/>shared pool<br/>creado solo si llm/media habilitados]
     CLIENT -.->|OpenAPI| DOCS[/docs · /openapi.json]
 
     style CLIENT fill:#1a202c,stroke:#0d1117,color:#f1f5f9
