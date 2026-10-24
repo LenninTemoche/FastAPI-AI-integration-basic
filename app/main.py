@@ -7,6 +7,8 @@ los routers.
 """
 from contextlib import AsyncExitStack, asynccontextmanager
 
+import httpx
+
 from fastapi import FastAPI
 
 from app.core import system
@@ -16,7 +18,16 @@ from app.core.registry import install_modules
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    settings = get_settings()
+    enabled = settings.enabled_modules_list
+    needs_http = any(m in ("llm", "media") for m in enabled)
+
     async with AsyncExitStack() as stack:
+        if needs_http:
+            http_client = httpx.AsyncClient(timeout=settings.llm_timeout_seconds)
+            await stack.enter_async_context(http_client)
+            app.state.llm_http_client = http_client
+
         for spec in app.state.modules.values():
             if spec.lifespan:
                 await stack.enter_async_context(spec.lifespan(app))
