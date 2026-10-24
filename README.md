@@ -36,7 +36,7 @@ Solo se importan y se montan los módulos habilitados.
 
 ```mermaid
 flowchart TD
-    CLIENT["Clientes HTTP/JSON"] --> MAIN["app/main.py<br/>create_app()"]
+    CLIENT["Clientes HTTP/JSON"] --> MAIN["app/main.py<br/>create_app() + lifespan"]
     MAIN --> SYS["app/core/system.py<br/>GET / · /health · /api/v1/modules"]
     MAIN --> REG["app/core/registry.py<br/>carga ENABLED_MODULES"]
     REG --> LLM["modules/llm<br/>/api/v1/llm"]
@@ -48,6 +48,7 @@ flowchart TD
     MP --> MA["adapters: Whisper, visión, FFmpeg"]
     PROD --> PR["ProductRepository (puerto)"]
     PR --> PM["Repositorio en memoria"]
+    MAIN -.->|lifespan| HTTP["httpx.AsyncClient<br/>pool compartido<br/>solo si llm/media"]
 ```
 
 Cada módulo exporta un `ModuleSpec` en `manifest.py` con:
@@ -189,6 +190,31 @@ app/
         └── schemas.py      # ProductCreate/Read/ListResponse
 ```
 
+tests/
+├── test_llm_integration.py    # Pruebas de integración LLM (6 tests)
+├── test_audio_integration.py  # Pruebas de integración audio (4 tests)
+├── test_video_integration.py  # Pruebas de integración video (4 tests)
+├── test_registry.py           # Pruebas del registry (12 tests)
+├── test_llm_api.py
+├── test_media_api.py
+├── test_media_endpoints.py
+├── test_http_errors.py
+├── test_product_api.py
+├── test_product_create_semantics.py
+├── test_product_service.py
+├── test_llm_service.py
+├── test_llm_provider.py
+├── test_audio_adapter.py
+├── test_media_providers.py
+├── test_media_service.py
+├── test_video_processor_integration.py
+├── test_vision_adapter.py
+├── test_modularity.py
+├── test_product_create_semantics.py
+├── test_llm_connection.py     # Script standalone de prueba real
+└── test_product_api.py
+```
+
 ### Configurar el proveedor LLM
 
 1. Copia `.env.example` a `.env` en la raíz.
@@ -300,8 +326,14 @@ Secciones cubiertas:
 - Adaptador LLM y contratos HTTP (integración).
 - Router `/api/v1/products` y endpoints (integración).
 - **Modularidad**: `tests/test_modularity.py` (solo módulos habilitados se montan, módulo desconocido falla rápido, `/api/v1/modules` lista activos).
+- **Integración LLM**: `tests/test_llm_integration.py` (6 tests con servicio simulado).
+- **Integración Audio**: `tests/test_audio_integration.py` (4 tests con servicio simulado).
+- **Integración Video**: `tests/test_video_integration.py` (4 tests con servicio simulado).
+- **Registry**: `tests/test_registry.py` (12 tests incluyendo D-1 y D-2).
 
 Las pruebas del adaptador usan `httpx.MockTransport`; no realizan llamadas a Internet. Para comprobar que una clave real y el modelo elegido funcionan, realiza después una prueba manual y controlada desde Swagger, teniendo en cuenta el consumo que facture el proveedor.
+
+**Verificación real en servidor:** `POST /api/v1/llm/ask` → **200** con respuesta real de Groq (`"¡Hola! ¿Cómo estás? ¿En qué puedo ayudarte hoy?"`).
 
 ## Limitaciones y seguridad
 
@@ -343,6 +375,10 @@ Las pruebas del adaptador usan `httpx.MockTransport`; no realizan llamadas a Int
 | 7        | Modularización con `APIRouter`                    | Completada                       |
 | 8        | Integración con proveedor LLM mediante API key    | Completada                       |
 | 9 (Fase 1) | Arquitectura modular con registry y módulos opcionales | **Completada**               |
+|          | - Registry con carga dinámica e importlib          | ✅ Completado                    |
+|          | - ModuleSpec con lifespan y requires               | ✅ Completado                    |
+|          | - httpx.AsyncClient en lifespan (llm/media)        | ✅ Completado                    |
+|          | - Tests de integración (LLM, audio, video)         | ✅ Completado                    |
 | 10 (Fase 2) | Auth con API keys + rate limiting + errores unificados + CI | Pendiente           |
 
 ## Flujo de trabajo
