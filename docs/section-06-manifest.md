@@ -1,8 +1,10 @@
 ## Sección 6 — avance evolutivo
 
+> **Nota:** Este manifiesto refleja el estado del código al completar la Sección 6 (antes de la modularización de la Fase 1). La estructura actual (Fase 1 completada) usa `app/modules/` y `app/core/registry.py`. Ver `docs/architecture.md` para la estructura actual.
+
 Este paquete asume que las secciones 1–5 ya existen en el repositorio. No incluye `requirements.txt`, `pyproject.toml` ni `app/schemas/product.py` porque no necesitan cambios para esta entrega.
 
-## Archivos nuevos
+## Archivos nuevos (Sección 6 original)
 
 - `app/core/__init__.py`
 - `app/core/dependencies.py`
@@ -36,3 +38,12 @@ Este paquete asume que las secciones 1–5 ya existen en el repositorio. No incl
 - No añade una base de datos ni persistencia durable.
 - No elige ni llama un proveedor de IA.
 - No modifica dependencias fijadas en `requirements.txt`.
+
+> **Estado actual (Fase 1 completada):** Los archivos de la Sección 6 fueron reorganizados en la arquitectura modular:
+> - `app/core/dependencies.py` → `app/core/config.py` + `app/modules/*/deps.py`
+> - `app/core/exception_handlers.py` → `app/modules/*/errors.py`
+> - `app/domain/` → `app/modules/products/{models.py, exceptions.py}`
+> - `app/repositories/` → `app/modules/products/{repository.py, in_memory_repository.py}`
+> - `app/services/` → `app/modules/products/service.py`
+> - `app/schemas/errors.py` → `app/core/schemas.py`
+> - `app/schemas/product.py` → `app/modules/products/schemas.py`

@@ -1,6 +1,8 @@
 # Manifiesto de archivos — Sección 7
 
-Archivos nuevos
+> **Nota:** Este manifiesto refleja el estado al completar la Sección 7 (antes de la modularización de la Fase 1). La estructura actual (Fase 1 completada) usa `app/modules/` con `app/core/registry.py` para carga dinámica.
+
+## Archivos nuevos (Sección 7 original)
 
 - `app/api/__init__.py`
 - `app/api/root.py`
@@ -35,3 +37,9 @@ crear ni cambiar `requirements.txt` para esta sección.
 2. Revisar los cambios con `git status`, `git diff --check` y `git diff`.
 3. No marcar como aceptada la sección 7 hasta ejecutar las pruebas locales.
 4. Hacer el commit y push manualmente solo después de revisar el diff.
+
+> **Estado actual (Fase 1 completada):** Los archivos de la Sección 7 fueron reorganizados en la arquitectura modular:
+> - `app/api/root.py` → `app/core/system.py`
+> - `app/api/v1/router.py` → `app/core/registry.py` (función `install_modules()`)
+> - `app/api/v1/endpoints/products.py` → `app/modules/products/router.py`
+> - `app/api/` → eliminado (reemplazado por `app/modules/` y `app/core/`)

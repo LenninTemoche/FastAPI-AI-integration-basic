@@ -4,9 +4,9 @@ Extensión del alcance CRUD para incluir actualización.
 
 Esta guía describe el contrato CRUD que se mantiene después de la separación de
 rutas realizada en la sección 7. Los endpoints HTTP viven ahora en
-`app/api/v1/endpoints/products.py`; el router agregador está en
-`app/api/v1/router.py`. La lógica permanece en `ProductService` y el almacenamiento
-detrás de `ProductRepository`.
+`app/modules/products/router.py`; el registro lo gestiona `app/core/registry.py`.
+La lógica permanece en `ProductService` y el almacenamiento detrás de
+`ProductRepository`.
 
 
 > **Limitación importante:** el almacén vive en la memoria del proceso. Los datos se pierden al reiniciar la aplicación o recargar el servidor de desarrollo. Tampoco se comparte entre procesos o instancias. Esto permite aprender el contrato REST, es una implementación didáctica, no persistencia de producción.
@@ -23,17 +23,16 @@ detrás de `ProductRepository`.
 | DELETE | `/api/v1/products/{product_id}` | `204 No Content`, sin body | `404` si no existe; `422` si ID inválido |
 
 
-
 ## 2. Esquema de entrada
 
-`ProductCreate` se declara en `app/schemas/product.py` y se usa tanto para crear como para actualizar completamente los campos editables:
+`ProductCreate` se declara en `app/modules/products/schemas.py` y se usa tanto para crear como para actualizar completamente los campos editables:
 
 | Campo           | Regla                                                                      |
 | --------------- | -------------------------------------------------------------------------- |
 | `name`        | Obligatorio, entre 3 y 100 caracteres después de quitar espacios externos |
-| `price`       | Obligatorio, mayor que cero; no admite`NaN` ni infinito                  |
+| `price`       | Obligatorio, mayor que cero; no admite `NaN` ni infinito                  |
 | `stock`       | Obligatorio, entero mayor o igual que cero                                 |
-| `description` | Opcional, hasta 500 caracteres; valor por defecto`null`                  |
+| `description` | Opcional, hasta 500 caracteres; valor por defecto `null`                  |
 
 Los campos no declarados se rechazan. Los errores de validación predeterminados de FastAPI son `422 Unprocessable Entity`.
 
@@ -45,8 +44,7 @@ no se deduplica automáticamente. Esto es intencional y está probado en
 `tests/test_product_create_semantics.py`. Para entender las implicaciones y las
 posibles alternativas, consulte `docs/create-and-idempotency-semantics.md`.
 
-
-E`PUT` actualiza el recurso existente y conserva su identificador. El ID lo asigna
+`PUT` actualiza el recurso existente y conserva su identificador. El ID lo asigna
 la API, no el cliente. Si el dominio futuro requiere identidad única (p. ej. SKU)
 o reintentos idempotentes, la regla debe diseñarse explícitamente y respaldarse
 con una persistencia apropiada.

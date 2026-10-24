@@ -14,15 +14,15 @@ dependencies = [
     "pydantic-settings>=2.10,<3.0",
     "python-dotenv>=1.0,<2.0",
 ]
-optional-dependencies = {
-    "media = [
-        \"imageio-ffmpeg>=0.6.0,<1.0\",
-        \"python-multipart>=0.0.20,<1.0\",
-    ]",
-    "dev = [
-        \"pytest>=8.0\",
-    ]",
-}
+
+[project.optional-dependencies]
+media = [
+    "imageio-ffmpeg>=0.6.0,<1.0",
+    "python-multipart>=0.0.20,<1.0",
+]
+dev = [
+    "pytest>=8.0",
+]
 
 [tool.setuptools.packages.find]
 include = ["app*"]

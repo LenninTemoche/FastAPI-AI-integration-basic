@@ -94,9 +94,9 @@ Sección completada y verificada localmente. El endpoint demostrativo `POST /api
 ## Sección 7 — modularización con APIRouter (completada)
 
 - [x] G1 `app/main.py` solo compone la aplicación, maneja el registro de routers y los manejadores HTTP.
-- [x] G2 `GET /` se conserva en un router general.
-- [x] G3 El CRUD se mueve a `app/api/v1/endpoints/products.py`.
-- [x] G4 `app/api/v1/router.py` agrega routers bajo `/api/v1`.
+- [x] G2 `GET /` se conserva en un router general (`app/core/system.py`).
+- [x] G3 El CRUD se mueve a `app/modules/products/router.py`.
+- [x] G4 `app/core/registry.py` agrega routers bajo `/api/v1` vía `install_modules()`.
 - [x] G5 Se conservan exactamente los métodos y paths públicos existentes.
 - [x] G6 Se conservan respuestas 200, 201, 204, 404 y 422, esquemas y parámetros.
 - [x] G7 Swagger/OpenAPI enumera cada endpoint solo una vez y mantiene el esquema `ErrorResponse` para los 404.

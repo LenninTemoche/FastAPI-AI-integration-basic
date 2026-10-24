@@ -8,7 +8,7 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from app.main import create_app
+from app.factory import create_app
 from app.modules.llm.deps import get_llm_service
 from app.modules.llm.ports import (
     LLMGenerationResult,

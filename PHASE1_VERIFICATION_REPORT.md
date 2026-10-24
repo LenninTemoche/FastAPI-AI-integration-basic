@@ -6,11 +6,11 @@
 |---|---|
 | Repositorio | FastAPI-AI-integration-basic |
 | Rama | `refactor/fase1-modulos` |
-| SHA | `37c79e0` (HEAD) — sincronizada con origen |
-| SHA @{u} | `37c79e0` (sincronizada con origen) |
+| SHA | `cf9e996` (HEAD) — sincronizada con origen |
+| SHA @{u} | `cf9e996` (sincronizada con origen) |
 | Python | 3.13.13 |
 | SO | Windows 11 (Win32, PowerShell 5.1) |
-| Fecha | 2026-10-23 |
+| Fecha | 2026-10-24 |
 
 ## 2. Etapa 0 — Descubrimiento
 
@@ -40,7 +40,7 @@
 | `HEAD` == `@{u}` | Sí (`37c79e0...` == `37c79e0...`) | Continuar |
 | Árbol de trabajo limpio | Sí (todos los cambios commiteados) | Continuar |
 | Existe `app/modules/` y `app/core/registry.py` | Sí | Continuar |
-| Suite actual en verde | Sí (104 tests OK) | Continuar |
+| Suite actual en verde | Sí (126 tests OK) | Continuar |
 
 ### Inventario de archivos clave (lectura única)
 
@@ -70,7 +70,7 @@ No existen extras exclusivos por módulo en `pyproject.toml`. Todas las dependen
 | B1 Empaquetado | APROBADO | `pip install -r requirements.txt` funciona en venv limpio |
 | B2 Instalación mínima | APROBADO | `create_app(enabled=["llm"])` ejecuta correctamente |
 | B3 Aislamiento de dependencias | APROBADO | No hay extras exclusivos por módulo; todas las dependencias son de nivel base |
-| B4 Entorno completo | APROBADO | Suite completa: **104 tests OK** (78 originales + 12 nuevos de registry + 14 nuevos de integración) |
+| B4 Entorno completo | APROBADO | Suite completa: **126 tests OK** (78 originales + 12 nuevos de registry + 14 nuevos de integración) |
 
 ## 4. Etapa 2 — Contrato ModuleSpec
 
@@ -136,7 +136,7 @@ Todos los campos de `ModuleSpec` están definidos en `app/core/module.py` y cons
 
 | Criterio | Estado | Evidencia |
 |---|---|---|
-| Suite completa | APROBADO | 104 tests (antes: 78) — no disminuyó |
+| Suite completa | APROBADO | 126 tests (antes: 78) — no disminuyó |
 | OpenAPI vs línea base | APROBADO | Solo `/health` y `/api/v1/modules` son nuevos |
 | Endpoints HTTP | APROBADO | 9 endpoints verificados (7 originales + 2 nuevos) |
 | create_app(enabled=[...]) | APROBADO | Aislamiento por módulo verificado en tests |
@@ -164,8 +164,8 @@ Todos los campos de `ModuleSpec` están definidos en `app/core/module.py` y cons
 
 | Métrica | Antes | Después |
 |---|---|---|
-| Total tests | 78 | 104 |
-| Tests de registry | 0 | 12 |
+| Total tests | 78 | 126 |
+| Tests de registry | 0 | 23 |
 | Tests de integración (llm/audio/video) | 0 | 14 |
 | Fallos | 0 | 0 |
 
@@ -264,13 +264,15 @@ GET /api/v1/modules → 200 [lista de módulos activos]
 La Fase 1 está completa y verificada. **Todos los criterios de aceptación están APROBADO** con evidencia ejecutable, incluyendo la verificación en servidor en ejecución (`fastapi dev`). Los dos defectos sospechados (D-1 y D-2) fueron reproducidos con tests antes de corregirlos, y verificados después. El problema de página blanca fue causado por un proceso zombie en el puerto 8000, no por código de la aplicación.
 
 **Nueva funcionalidad verificada:**
-- `httpx.AsyncClient` inicializado en `lifespan` de `app/main.py` → `app.state.llm_http_client` disponible para módulos `llm` y `media`
+- `httpx.AsyncClient` inicializado en `lifespan` de `app/modules/llm/manifest.py` → `app.state.http_client` disponible para módulos `llm` y `media`
 - Cliente HTTP compartido, creado solo cuando módulos `llm`/`media` están habilitados
 - `POST /api/v1/llm/ask` → **200 con respuesta real de Groq** (`"¡Hola! ¿Cómo estás? ¿En qué puedo ayudarte hoy?"`)
 - 14 nuevos tests de integración (LLM, audio, video) con servicios simulados
+- 23 tests de registry (incluyendo D-1, D-2, D8, E1, E2, ENABLED_MODULES)
+- 11 tests de arquitectura (F1)
 
-Se agregaron 14 nuevos tests de integración (`test_llm_integration.py`, `test_audio_integration.py`, `test_video_integration.py`) y plantilla `.env.example`.
+Se agregaron 14 nuevos tests de integración (`test_llm_integration.py`, `test_audio_integration.py`, `test_video_integration.py`), 11 tests de arquitectura (`test_architecture.py`), 23 tests de registry, y plantilla `.env.example`.
 
-La rama `refactor/fase1-modulos` está lista para merge a `main`.
+La rama `refactor/fase1-modulos` (SHA `cf9e996`) está lista para merge a `main`.
 
 No iniciar la Fase 2 hasta que este reporte sea revisado y aprobado.

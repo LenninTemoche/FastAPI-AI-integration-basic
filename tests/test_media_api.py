@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from app.main import create_app
+from app.factory import create_app
 from app.core.config import Settings, get_settings
 from app.modules.media.deps import get_audio_transcription_service, get_video_analysis_service
 from app.modules.llm.ports import LLMGenerationResult

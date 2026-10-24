@@ -8,7 +8,7 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from app.main import create_app
+from app.factory import create_app
 from app.modules.products.in_memory_repository import InMemoryProductRepository
 from app.modules.products.service import ProductService
 

@@ -8,7 +8,7 @@ import unittest
 
 from fastapi.testclient import TestClient
 
-from app.main import create_app
+from app.factory import create_app
 from app.modules.media.deps import get_audio_transcription_service
 from app.modules.media.service import AudioTranscriptionService
 from app.modules.media.ports import MediaTranscriptionResult

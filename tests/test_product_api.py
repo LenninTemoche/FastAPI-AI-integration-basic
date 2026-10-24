@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app.main import create_app  # noqa: E402
+from app.factory import create_app  # noqa: E402
 from app.modules.products.deps import get_product_service  # noqa: E402
 from app.modules.products.in_memory_repository import InMemoryProductRepository  # noqa: E402
 from app.modules.products.service import ProductService  # noqa: E402
