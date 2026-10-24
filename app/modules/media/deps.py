@@ -16,7 +16,7 @@ def get_llm_provider(
     request: Request,
     settings: Settings = Depends(get_settings),
 ) -> LLMProvider:
-    client = getattr(request.app.state, "llm_http_client", None)
+    client = getattr(request.app.state, "http_client", None)
     if client is None:
         raise LLMNotConfiguredError
     return build_provider(settings, client)
@@ -27,7 +27,7 @@ def get_audio_transcription_service(
     provider: LLMProvider = Depends(get_llm_provider),
 ) -> AudioTranscriptionService:
     settings = get_settings()
-    client = getattr(request.app.state, "llm_http_client", None)
+    client = getattr(request.app.state, "http_client", None)
     if client is None:
         raise LLMNotConfiguredError
     transcriber = OpenAICompatibleAudioTranscriber(settings=settings, client=client)
@@ -39,7 +39,7 @@ def get_video_analysis_service(
     provider: LLMProvider = Depends(get_llm_provider),
 ) -> VideoAnalysisService:
     settings = get_settings()
-    client = getattr(request.app.state, "llm_http_client", None)
+    client = getattr(request.app.state, "http_client", None)
     if client is None:
         raise LLMNotConfiguredError
     processor = FFmpegVideoProcessor(settings)

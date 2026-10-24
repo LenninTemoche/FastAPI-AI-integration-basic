@@ -13,7 +13,7 @@ def get_llm_provider(
     request: Request,
     settings: Settings = Depends(get_settings),
 ) -> LLMProvider:
-    client = getattr(request.app.state, "llm_http_client", None)
+    client = getattr(request.app.state, "http_client", None)
     if client is None:
         from app.modules.llm.ports import LLMNotConfiguredError
         raise LLMNotConfiguredError
