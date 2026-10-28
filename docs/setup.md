@@ -61,6 +61,19 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
+`requirements.txt` es derivado de `pyproject.toml` (fuente única) y contiene:
+```
+-e .[media,dev]
+```
+
+Esto instala el paquete en modo editable con los extras `media` (para `imageio-ffmpeg` y `python-multipart`) y `dev` (para pruebas). `python-multipart` se declara en el extra `media` porque el módulo `media` lo usa directamente (`UploadFile`/`Form`). Hoy también llega con `fastapi[standard]` (dependencia base), por lo que ya está presente en una instalación base; el único paquete cuya ausencia distingue una instalación mínima es `imageio-ffmpeg`.
+
+Para una instalación mínima sin extras:
+
+```powershell
+python -m pip install .
+```
+
 Comprueba la versión instalada de FastAPI:
 
 ```powershell
@@ -69,7 +82,16 @@ python -m pip show fastapi
 
 Debe indicar la versión `0.161.1`. Si la instalación falla, guarda el mensaje completo del error para diagnosticarlo antes de cambiar versiones o añadir dependencias.
 
-`requirements.txt` fija la versión principal de FastAPI y usa el extra `standard` para contar con el comando `fastapi` y las herramientas estándar del servidor. Las dependencias transitivas se resolverán durante la instalación. Una vez verificada la instalación local, se podrá generar un archivo de bloqueo con la resolución concreta del entorno.
+**Importante:** Con la instalación mínima (`. ` sin extras), `imageio-ffmpeg` NO está instalado. Si intentas importar `app.modules.media` o ejecutar pruebas que requieran FFmpeg, fallará con `ModuleNotFoundError`. Para usar el módulo `media`, instala con el extra: `pip install ".[media]"` o establece `ENABLED_MODULES=products` para evitar cargar el módulo `media`.
+
+## Archivo de restricciones (constraints.txt)
+
+Para reproducir exactamente el entorno de validación, se incluye `constraints.txt` en la raíz del repositorio, generado con `pip freeze` desde un entorno limpio:
+
+```powershell
+pip install -c constraints.txt .[media,dev]
+```
+
 
 ## 4. Estructura creada en esta sección
 
@@ -87,6 +109,16 @@ FastAPI-AI-integration-basic/
 ```
 
 `app/main.py` es el punto de entrada de esta aplicación mínima. `app/__init__.py` hace explícito que `app` es un paquete Python. No se han creado routers ni capas de servicio todavía porque pertenecen a etapas posteriores.
+
+**Importante:** Con la instalación mínima (`. ` sin extras), `imageio-ffmpeg` NO está instalado. Si intentas importar `app.modules.media` o ejecutar pruebas que requieran FFmpeg, fallará con `ModuleNotFoundError`. Para usar el módulo `media`, instala con el extra: `pip install ".[media]"` o establece `ENABLED_MODULES=products` para evitar cargar el módulo `media`.
+
+**Importar `app.main` con dependencias mínimas:**
+
+Con la instalación mínima (`. ` sin extras), `import app.main` funciona correctamente porque `app/main.py` solo importa `app.core.system`, `app.core.config` y `app.core.registry`, que no dependen de `imageio-ffmpeg` ni `python-multipart`.
+
+Sin embargo, `create_app(enabled=["media"])` fallará si `imageio_ffmpeg` no está instalado, porque el módulo `media` lo requiere. Para evitar esto, usa `ENABLED_MODULES=products` (o cualquier combinación que no incluya `media`) o instala el extra: `pip install ".[media]"`.
+
+> Ver [Arquitectura Fase 1](architecture.md#1-estilo-arquitectónico).
 
 > **Nota:** En la Fase 1 (arquitectura modular), la estructura evoluciona a:
 > ```text
