@@ -19,9 +19,9 @@ _PROVIDERS = {
 def build_provider(settings: Settings, client: httpx.AsyncClient) -> LLMProvider:
     # Normalizar: strip + lower para aceptar mayúsculas, espacios, etc.
     provider_key = settings.llm_provider.strip().lower()
-    try:
-        return _PROVIDERS[provider_key](settings, client)
-    except KeyError as exc:
+    factory = _PROVIDERS.get(provider_key)
+    if factory is None:
         raise LLMNotConfiguredError(
             f"Proveedor LLM desconocido: {settings.llm_provider}"
-        ) from exc
+        )
+    return factory(settings, client)

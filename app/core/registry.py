@@ -37,7 +37,8 @@ def _load_spec(name: str) -> ModuleSpec:
             ) from exc
         # 3. Si está fuera de app., es una dependencia Python no instalada.
         raise ModuleLoadError(
-            f"El módulo '{name}' necesita una dependencia no instalada: {exc.name}"
+            f"El módulo '{name}' necesita una dependencia no instalada: {exc.name}. "
+            f"Instala las dependencias del proyecto (p. ej. pip install '.[media]')"
         ) from exc
     if spec.name != name:
         raise ModuleLoadError(f"spec.name '{spec.name}' no coincide con la carpeta '{name}'")
