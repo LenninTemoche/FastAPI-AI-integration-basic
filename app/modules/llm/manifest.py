@@ -4,6 +4,7 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import Callable
 
 import httpx
+from app.core.http import HTTP_CLIENT_STATE_KEY
 from app.core.module import ModuleSpec
 from app.core.config import get_settings
 
@@ -15,13 +16,12 @@ from .router import router
 async def _llm_lifespan(app) -> AbstractAsyncContextManager[None]:
     """Crea y cierra el cliente HTTP compartido para módulos llm y media."""
     settings = get_settings()
-    from contextlib import AsyncExitStack
-    async with AsyncExitStack() as stack:
-        http_client = httpx.AsyncClient(timeout=settings.llm_timeout_seconds)
-        await stack.enter_async_context(http_client)
-        # Contrato explícito: cliente HTTP compartido en app.state.http_client
-        app.state.http_client = http_client
+    http_client = httpx.AsyncClient(timeout=settings.llm_timeout_seconds)
+    setattr(app.state, HTTP_CLIENT_STATE_KEY, http_client)
+    try:
         yield
+    finally:
+        await http_client.aclose()
 
 
 spec = ModuleSpec(
