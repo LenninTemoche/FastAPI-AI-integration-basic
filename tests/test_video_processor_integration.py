@@ -1,19 +1,25 @@
 """Prueba de integración de FFmpeg con un MP4 sintético, sin archivos personales ni red."""
 
 import asyncio
+import importlib.util
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-import imageio_ffmpeg
+import httpx
 
 from app.core.config import Settings
 from app.modules.media.adapters.ffmpeg_video_processor import FFmpegVideoProcessor
 
 
+@unittest.skipUnless(
+    importlib.util.find_spec("imageio_ffmpeg") is not None,
+    "Requiere imageio-ffmpeg (extra media)"
+)
 class FFmpegVideoProcessorIntegrationTests(unittest.TestCase):
     def test_extracts_bounded_frames_and_audio_from_synthetic_video(self):
+        import imageio_ffmpeg
         ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
         with tempfile.TemporaryDirectory(prefix="media-test-") as temp_dir:
             video_path = Path(temp_dir) / "synthetic.mp4"
