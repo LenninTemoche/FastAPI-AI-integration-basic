@@ -81,7 +81,7 @@ Cada módulo exporta un `ModuleSpec` en `manifest.py` con:
 | `pyproject.toml` | Fuente única. `fastapi[standard]==0.161.1`, `httpx>=0.28,<1.0`, `pydantic-settings>=2.10,<3.0`, `python-dotenv>=1.0,<2.0` | `requires-python = ">=3.13"` (V8: `pip install -e .` falla en 3.11/3.12) |
 | `requirements.txt` | `-e .[media,dev]` | Sin pines `==`; deriva de `pyproject.toml` |
 | `constraints.txt` | 64 pines generados con `pip freeze` (Windows + Python 3.13) | Incluye `colorama`, omite `uvloop`; no es lock multiplataforma (V7) |
-| Extra `media` | `imageio-ffmpeg>=0.6.0,<1.0`, `python-multipart>=0.0.20,<1.0` | Solo necesario para análisis de video/audio (V9) |
+| Extra `media` | `imageio-ffmpeg>=0.6.0,<1.0`, `python-multipart>=0.0.20,<1.0` | Solo necesario para el análisis de video (V9). El audio no usa `imageio-ffmpeg` |
 | Extra `dev` | `pytest>=8.0` | Para ejecutar la suite de pruebas |
 
 ## Inicio rápido — Windows / PowerShell
@@ -226,7 +226,9 @@ tests/
 ├── test_video_processor_integration.py  # 1 test
 └── test_vision_adapter.py               # 7 tests
 
-Total: 172 tests (pytest), 0 fallos, 0 omitidos. No existe `tests/test_modularity.py`.
+Total: 172 tests (pytest). Con `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` definidas: 172 passed, 0 failed.
+Sin esas variables: 171 passed + 1 failed (`test_lifespan.py::test_llm_ask_with_mock_transport_returns_200`, ver V4).
+No existe `tests/test_modularity.py`.
 ```
 
 ### Configurar el proveedor LLM
@@ -335,7 +337,7 @@ Desde la raíz del repositorio, con el entorno virtual activado:
 python -m pytest -q
 ```
 
-Resultado real medido en esta sesión (Python 3.13.9, `fix/fase1-cierre` HEAD `16dab3b`): **172 passed, 0 failed, 0 skipped** en 27.99s.
+Resultado real medido en esta sesión (Python 3.13.9, `fix/fase1-cierre`, HEAD `16dab3b` en el momento de medir): **172 passed, 0 failed, 0 skipped** en 27.99s, con `LLM_API_KEY`, `LLM_BASE_URL` y `LLM_MODEL` definidas (sin ellas, ver la nota V4 más abajo).
 
 Recuento por comando de recolección:
 

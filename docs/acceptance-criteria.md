@@ -150,7 +150,7 @@ Sección completada y verificada localmente. El endpoint demostrativo `POST /api
 - [x] J10. Tests pasan: `create_app(enabled=["products"])` monta solo products (llm/media → 404).
 - [x] J11. Módulo desconocido falla rápido con `ModuleLoadError`.
 - [x] J12. Endpoint `/api/v1/modules` lista módulos activos con nombre, versión y descripción.
-- [x] J13. 172 tests pasan (pytest, Python 3.13.9, 0 fallos, 0 omitidos); incluye tests de modularidad en `tests/test_registry.py`, `tests/test_architecture.py` y `tests/test_lifespan.py`.
+- [x] J13. 172 tests pasan (pytest, Python 3.13.9, 0 fallos, 0 omitidos) **con `LLM_API_KEY`, `LLM_BASE_URL` y `LLM_MODEL` definidas**; sin ellas falla 1 test (J17). Incluye tests de modularidad en `tests/test_registry.py`, `tests/test_architecture.py` y `tests/test_lifespan.py`.
 - [x] J14. Documentación actualizada (README, architecture.md, acceptance-criteria.md).
 - [x] J15. `git diff --check` pasa, commit manual realizado.
 
@@ -158,7 +158,7 @@ Sección completada y verificada localmente. El endpoint demostrativo `POST /api
 
 | ID | Verificación | Resultado | Estado |
 |----|--------------|-----------|--------|
-| J16 | `python -m pytest -q` | 172 passed, 0 failed, 0 skipped (27.99s) | [x] |
+| J16 | `python -m pytest -q` (con `LLM_*` definidas) | 172 passed, 0 failed, 0 skipped (27.99s) | [x] |
 | J17 | `python -m pytest -q` sin `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` | `test_lifespan.py::test_llm_ask_with_mock_transport_returns_200` falla (503 vs 200) | [ ] Pendiente P1 |
 | J18 | OpenAPI: 8 paths idénticos a `main` | `/`, `/health`, `/api/v1/modules`, `/api/v1/llm/ask`, `/api/v1/media/transcriptions`, `/api/v1/media/videos/analyze`, `/api/v1/products`, `/api/v1/products/{product_id}` | [x] |
 | J19 | Smoke test servidor local (puerto 8765) | `GET /`, `/health`, `/api/v1/modules` → 200 | [x] |

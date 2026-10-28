@@ -102,7 +102,7 @@ Desde la raíz del repositorio, con el entorno virtual activado:
 python -m pytest -q
 ```
 
-Resultado real medido en esta sesión (Python 3.13.9, `fix/fase1-cierre` HEAD `16dab3b`): **172 passed, 0 failed, 0 skipped** en 27.99s.
+Resultado real medido en esta sesión (Python 3.13.9, `fix/fase1-cierre`, HEAD `16dab3b` en el momento de medir): **172 passed, 0 failed, 0 skipped** en 27.99s, con `LLM_API_KEY`, `LLM_BASE_URL` y `LLM_MODEL` definidas. Sin ellas falla 1 test (ver `docs/phase1-closure.md`, V4 y P1).
 
 Recuento por comando de recolección:
 
@@ -132,7 +132,7 @@ FastAPI-AI-integration-basic/
 
 **Importar `app.main` con dependencias mínimas:**
 
-Con la instalación mínima (`. ` sin extras), `import app.main` funciona correctamente porque `app/main.py` solo importa `app.core.system`, `app.core.config` y `app.core.registry`, que no dependen de `imageio-ffmpeg` ni `python-multipart`.
+Con la instalación mínima (`. ` sin extras), `import app.main` funciona correctamente: `app/main.py` importa `app.factory`, que a su vez importa `app.core.system`, `app.core.config` y `app.core.registry`; ninguno de ellos depende de `imageio-ffmpeg`. Al importar `app.main` se ejecuta `app = create_app()` a nivel de módulo (se cargan los módulos de `ENABLED_MODULES`), pero el import de `imageio_ffmpeg` sigue siendo perezoso.
 
 > Ver [Arquitectura Fase 1](architecture.md#1-estilo-arquitectónico).
 

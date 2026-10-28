@@ -36,4 +36,5 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
-test_*.py
+# Scripts sueltos en la raíz; NO afecta a tests/test_*.py
+/test_*.py

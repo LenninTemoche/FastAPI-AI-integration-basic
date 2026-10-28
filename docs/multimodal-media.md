@@ -143,7 +143,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/media/videos/analyze ^
 - **Audio:** la transcripción depende de que el contenedor (p. ej. MP4) incluya una pista de audio compatible y que el proveedor la admita.
 - **No streaming:** cada solicitud es una generación independiente; no hay transmisión en tiempo real.
 - **No reintentos automáticos:** si un POST al proveedor falla por timeout, no se reintenta (podría duplicar el consumo/coste).
-- **FFmpeg:** el análisis de video requiere `imageio-ffmpeg` (ya en `requirements.txt`). Si no está disponible, el endpoint devuelve `503`.
+- **FFmpeg:** el análisis de video requiere `imageio-ffmpeg`, que se instala con el extra `media` (`pip install ".[media]"`); no está en las dependencias base. Si no está disponible, el endpoint devuelve `503` (el import es perezoso, así que el módulo se monta igualmente).
 
 ## Arquitectura
 

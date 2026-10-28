@@ -8,8 +8,8 @@
 
 | ID | Elemento | Evidencia (medido en esta sesión) |
 |----|----------|-----------------------------------|
-| V1 | Rama y HEAD | `fix/fase1-cierre`, HEAD `16dab3b`, árbol sincronizado con `origin/fix/fase1-cierre`, árbol limpio |
-| V2 | Suite | 172 tests recolectados y 172 pasados, 0 fallos, 0 omitidos (`python -m pytest -q`, 27.99s) |
+| V1 | Rama y HEAD | `fix/fase1-cierre`, HEAD `16dab3b` en el momento de medir, árbol sincronizado con `origin/fix/fase1-cierre` |
+| V2 | Suite | 172 tests recolectados; 172 pasados, 0 fallos, 0 omitidos (`python -m pytest -q`, 27.99s) **con `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` definidas**. Sin ellas: 171 pasados + 1 fallo (ver V4) |
 | V3 | Archivos de tests | 24 archivos `test_*.py` en `tests/`; 23 aportan tests (`test_llm_connection.py` es standalone, 0 tests). No existe `tests/test_modularity.py` |
 | V4 | Suite sin credenciales LLM | No es hermética: sin `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL`, `test_lifespan.py::LifespanTests::test_llm_ask_with_mock_transport_returns_200` falla (recibe 503, espera 200). Pendiente: suite hermética |
 | V5 | OpenAPI | 8 paths idénticos a `main`: `/`, `/health`, `/api/v1/modules`, `/api/v1/llm/ask`, `/api/v1/media/transcriptions`, `/api/v1/media/videos/analyze`, `/api/v1/products`, `/api/v1/products/{product_id}` |
@@ -26,7 +26,7 @@
 | Pendiente | Criterio de salida (verificable) |
 |-----------|----------------------------------|
 | P1 Suite hermética | `python -m pytest -q` pasa en 172/172 sin requerir `LLM_API_KEY`, `LLM_BASE_URL` ni `LLM_MODEL` reales |
-| P2 Reporte con SHA de cierre | `PHASE1_VERIFICATION_REPORT.md` tiene un anexo al inicio con la tabla "dato del reporte vs valor medido hoy" (rama/SHA, conteo de tests, `test_modularity`, suite sin credenciales, OpenAPI, `evidence.txt`) |
+| P2 Reporte con SHA de cierre | Parcial: el anexo con la tabla "dato del reporte vs valor medido hoy" ya existe en `PHASE1_VERIFICATION_REPORT.md`. Falta que cite el SHA del commit de cierre (hoy cita `88a4afe` y `cf9e996`) y el resultado de la suite con la precondición de V2 |
 | P3 Evidencia regenerada o retirada | `evidence.txt` y `evidence-s8.txt` reflejan el SHA de cierre real o están marcados como históricos/no reproducibles |
 | P4 CI | Pipeline de CI configurado (lint, typecheck, tests, build) — fuera de esta tarea, queda para Fase 2 |
 | P5 Deprecaciones 422 | `HTTP_422_UNPROCESSABLE_ENTITY` reemplazado por `HTTP_422_UNPROCESSABLE_CONTENT` en `app/modules/media/errors.py` y `app/modules/media/router.py` |
