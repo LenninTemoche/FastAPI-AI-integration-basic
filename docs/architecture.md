@@ -14,16 +14,18 @@ El objetivo es que la API pueda crecer sin acoplar sus rutas HTTP a la lógica d
 
 ```text
 app/
-├── main.py                                    # create_app(enabled=...) + lifespan con httpx.AsyncClient
+├── main.py                                    # create_app(enabled=...) + lifespan
+├── factory.py                                 # create_app() canonica, sin HTTP client
 ├── core/
 │   ├── config.py                              # Settings + enabled_modules_list + LLM_PROVIDER
+│   ├── http.py                                # HTTP_CLIENT_STATE_KEY, get_shared_http_client()
 │   ├── module.py                              # ModuleSpec dataclass
 │   ├── registry.py                            # resolve() + install_modules()
 │   ├── system.py                              # GET / · /health · /api/v1/modules
 │   └── schemas.py                             # ErrorResponse compartido
 └── modules/
     ├── llm/                                   # Generación de texto
-    │   ├── manifest.py                        # ModuleSpec (register=errors)
+    │   ├── manifest.py                        # ModuleSpec (register=errors, lifespan=_llm_lifespan)
     │   ├── router.py                          # POST /ask
     │   ├── service.py                         # LLMService
     │   ├── deps.py                            # get_llm_service (inyecta proveedor + HTTP client)
@@ -34,7 +36,7 @@ app/
     │       ├── __init__.py                    # build_provider factory (LLM_PROVIDER)
     │       └── openai_compatible.py           # Chat Completions
     ├── media/                                 # Audio + Video
-    │   ├── manifest.py                        # ModuleSpec (requires=llm)
+    │   ├── manifest.py                        # ModuleSpec (requires=llm, lifespan=_media_lifespan)
     │   ├── router.py                          # POST /transcriptions, /videos/analyze
     │   ├── service.py                         # Audio/Video Analysis Services
     │   ├── deps.py                            # get_audio/video_service (inyectan HTTP client)
@@ -317,23 +319,19 @@ La API pública está bajo `/api/v1`. Los cambios compatibles podrán añadirse 
 
 ## 15. Testing de modularidad
 
-`tests/test_modularity.py` verifica:
+La modularidad se verifica mediante los siguientes archivos de prueba (V2, medido en esta sesión):
 
-```python
-def test_only_enabled_modules_are_mounted(self):
-    client = TestClient(create_app(enabled=["products"]))
-    self.assertEqual(client.get("/api/v1/products").status_code, 200)
-    self.assertEqual(client.post("/api/v1/llm/ask", json={"prompt": "hola"}).status_code, 404)
+| Archivo | Contenido | Conteo |
+|---------|-----------|--------|
+| `tests/test_registry.py` | Carga individual, dependencias transitivas, ciclo, desconocido, import roto, spec mismatch, enabled_modules vacío/duplicados, register una vez, 404 deshabilitados, no importados | 18 |
+| `tests/test_registry_imports.py` | Clasificación A/B/C/D, build_provider normalización | 10 |
+| `tests/test_architecture.py` | Reglas de imports por capa, cross-module solo via requires, app.core no importa app.modules | 23 |
+| `tests/test_lifespan.py` | MockTransport, cierre de cliente, orden open/close, media requiere llm, checks estáticos | 12 |
+| `tests/test_app_factory.py` | No legacy state key, single create_app | 2 |
 
-def test_unknown_module_fails_fast(self):
-    with self.assertRaises(ModuleLoadError):
-        create_app(enabled=["no_existe"])
+No existe `tests/test_modularity.py`. Las pruebas de aislamiento de módulos (`create_app(enabled=["products"])`) están en `tests/test_registry.py`.
 
-def test_modules_endpoint_lists_enabled(self):
-    client = TestClient(create_app(enabled=["llm"]))
-    names = [m["name"] for m in client.get("/api/v1/modules").json()]
-    self.assertEqual(names, ["llm"])
-```
+El formato `422` de validación usa el esquema estándar de FastAPI/Pydantic, no `ErrorResponse`. `ErrorResponse` se reserva para recursos inexistentes (`404`).
 
 ## Arquitectura implementada (Fase 1 completa)
 

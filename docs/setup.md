@@ -82,16 +82,36 @@ python -m pip show fastapi
 
 Debe indicar la versión `0.161.1`. Si la instalación falla, guarda el mensaje completo del error para diagnosticarlo antes de cambiar versiones o añadir dependencias.
 
-**Importante:** Con la instalación mínima (`. ` sin extras), `imageio-ffmpeg` NO está instalado. Si intentas importar `app.modules.media` o ejecutar pruebas que requieran FFmpeg, fallará con `ModuleNotFoundError`. Para usar el módulo `media`, instala con el extra: `pip install ".[media]"` o establece `ENABLED_MODULES=products` para evitar cargar el módulo `media`.
+**Importante:** `imageio-ffmpeg` se importa de forma perezosa en `app/modules/media/adapters/ffmpeg_video_processor.py` (dentro de `_extract_sync`). Por tanto `create_app(enabled=["media"])` funciona sin el extra; solo el análisis de video devuelve `503` cuando se invoca. Para usar el análisis de video, instala el extra: `pip install ".[media]"` o usa `ENABLED_MODULES=products` para evitar cargar el módulo `media`.
 
 ## Archivo de restricciones (constraints.txt)
 
-Para reproducir exactamente el entorno de validación, se incluye `constraints.txt` en la raíz del repositorio, generado con `pip freeze` desde un entorno limpio:
+Para reproducir exactamente el entorno de validación, se incluye `constraints.txt` en la raíz del repositorio, generado con `pip freeze` desde un entorno limpio (Windows + Python 3.13):
 
 ```powershell
-pip install -c constraints.txt .[media,dev]
+python -m pip install -c constraints.txt -r requirements.txt
 ```
 
+Límites (V7): son 64 pines generados en Windows con Python 3.13; incluye `colorama` y omite `uvloop`, por lo que no es un lock multiplataforma. Úsalo solo para reproducir el entorno de validación en la misma plataforma.
+
+## Ejecutar la suite de pruebas
+
+Desde la raíz del repositorio, con el entorno virtual activado:
+
+```powershell
+python -m pytest -q
+```
+
+Resultado real medido en esta sesión (Python 3.13.9, `fix/fase1-cierre` HEAD `16dab3b`): **172 passed, 0 failed, 0 skipped** en 27.99s.
+
+Recuento por comando de recolección:
+
+```powershell
+python -m pytest --collect-only -q
+```
+→ `172 tests collected`
+
+**Nota importante (V4):** la suite no es hermética. Sin `LLM_API_KEY`, `LLM_BASE_URL` y `LLM_MODEL` configurados, `test_lifespan.py::LifespanTests::test_llm_ask_with_mock_transport_returns_200` falla (recibe `503`, espera `200`) porque `get_settings()` lee el entorno. Pendiente: hacer la suite hermética para que pase sin credenciales.
 
 ## 4. Estructura creada en esta sección
 
@@ -110,13 +130,9 @@ FastAPI-AI-integration-basic/
 
 `app/main.py` es el punto de entrada de esta aplicación mínima. `app/__init__.py` hace explícito que `app` es un paquete Python. No se han creado routers ni capas de servicio todavía porque pertenecen a etapas posteriores.
 
-**Importante:** Con la instalación mínima (`. ` sin extras), `imageio-ffmpeg` NO está instalado. Si intentas importar `app.modules.media` o ejecutar pruebas que requieran FFmpeg, fallará con `ModuleNotFoundError`. Para usar el módulo `media`, instala con el extra: `pip install ".[media]"` o establece `ENABLED_MODULES=products` para evitar cargar el módulo `media`.
-
 **Importar `app.main` con dependencias mínimas:**
 
 Con la instalación mínima (`. ` sin extras), `import app.main` funciona correctamente porque `app/main.py` solo importa `app.core.system`, `app.core.config` y `app.core.registry`, que no dependen de `imageio-ffmpeg` ni `python-multipart`.
-
-Sin embargo, `create_app(enabled=["media"])` fallará si `imageio_ffmpeg` no está instalado, porque el módulo `media` lo requiere. Para evitar esto, usa `ENABLED_MODULES=products` (o cualquier combinación que no incluya `media`) o instala el extra: `pip install ".[media]"`.
 
 > Ver [Arquitectura Fase 1](architecture.md#1-estilo-arquitectónico).
 

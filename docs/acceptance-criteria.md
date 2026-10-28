@@ -150,10 +150,29 @@ Sección completada y verificada localmente. El endpoint demostrativo `POST /api
 - [x] J10. Tests pasan: `create_app(enabled=["products"])` monta solo products (llm/media → 404).
 - [x] J11. Módulo desconocido falla rápido con `ModuleLoadError`.
 - [x] J12. Endpoint `/api/v1/modules` lista módulos activos con nombre, versión y descripción.
-- [x] J12. URLs públicas preservadas: 6 originales + 2 nuevas (`/health`, `/api/v1/modules`).
-- [x] J13. 78 tests pasan incluyendo tests de modularidad.
+- [x] J13. 172 tests pasan (pytest, Python 3.13.9, 0 fallos, 0 omitidos); incluye tests de modularidad en `tests/test_registry.py`, `tests/test_architecture.py` y `tests/test_lifespan.py`.
 - [x] J14. Documentación actualizada (README, architecture.md, acceptance-criteria.md).
 - [x] J15. `git diff --check` pasa, commit manual realizado.
+
+### Fase 1 — verificaciones de cierre
+
+| ID | Verificación | Resultado | Estado |
+|----|--------------|-----------|--------|
+| J16 | `python -m pytest -q` | 172 passed, 0 failed, 0 skipped (27.99s) | [x] |
+| J17 | `python -m pytest -q` sin `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` | `test_lifespan.py::test_llm_ask_with_mock_transport_returns_200` falla (503 vs 200) | [ ] Pendiente P1 |
+| J18 | OpenAPI: 8 paths idénticos a `main` | `/`, `/health`, `/api/v1/modules`, `/api/v1/llm/ask`, `/api/v1/media/transcriptions`, `/api/v1/media/videos/analyze`, `/api/v1/products`, `/api/v1/products/{product_id}` | [x] |
+| J19 | Smoke test servidor local (puerto 8765) | `GET /`, `/health`, `/api/v1/modules` → 200 | [x] |
+| J20 | Ausencia de CI | No existe `.github/` ni pipeline de CI | [ ] Pendiente P4 |
+| J21 | Reporte y evidencia | `PHASE1_VERIFICATION_REPORT.md` y `evidence.txt` citan SHA/rama desfasados (históricos) | [ ] Pendiente P2/P3 |
+
+### Pendientes de cierre (J22–J26)
+
+- [ ] J22. Suite hermética: `pytest -q` pasa en 172/172 sin `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL` reales (P1).
+- [ ] J23. `PHASE1_VERIFICATION_REPORT.md` con anexo de datos medidos hoy (rama/SHA, conteo, `test_modularity`, suite sin credenciales, OpenAPI, `evidence.txt`) (P2).
+- [ ] J24. `evidence.txt` regenerada o retirada como histórica (P3).
+- [ ] J25. CI pipeline configurado (lint, typecheck, tests, build) — Fase 2 (P4).
+- [ ] J26. Reemplazar `HTTP_422_UNPROCESSABLE_ENTITY` por `HTTP_422_UNPROCESSABLE_CONTENT` en `app/modules/media/errors.py:36` y `app/modules/media/router.py:37` (6 `DeprecationWarning`) (P5).
+
 
 ## Objetivos globales
 

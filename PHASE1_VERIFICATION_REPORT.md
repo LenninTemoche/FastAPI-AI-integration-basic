@@ -1,5 +1,19 @@
 # PHASE1_VERIFICATION_REPORT.md
 
+> **Anexo — datos del reporte vs valor medido hoy** (medido en esta sesión, rama `fix/fase1-cierre`, HEAD `16dab3b`, Python 3.13.9):
+>
+> | Dato del reporte (histórico) | Valor medido hoy | Estado |
+> |------------------------------|------------------|--------|
+> | Rama `refactor/fase1-modulos` | `fix/fase1-cierre` | Corregido |
+> | SHA `cf9e996` | `16dab3b` (cierre de S8) | Corregido |
+> | 126 tests | 172 tests | Corregido |
+> | `tests/test_modularity.py` existe | No existe (23 archivos aportan tests) | Corregido |
+> | Suite sin credenciales pasa | Falla `test_lifespan.py::test_llm_ask_with_mock_transport_returns_200` (503 vs 200) | Pendiente P1 |
+> | OpenAPI: solo 2 endpoints nuevos vs línea base | 8 paths idénticos a `main` | Confirmado |
+> | `evidence.txt` cita SHA `af5efb8` inexistente | `evidence-s8.txt` con SHA `16dab3b` | Regenerado |
+>
+> El cuerpo de este informe se conserva como registro histórico sin reescribir.
+
 ## 1. Identificación
 
 | Campo | Valor |

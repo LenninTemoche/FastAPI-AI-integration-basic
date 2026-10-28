@@ -74,6 +74,16 @@ Cada módulo exporta un `ModuleSpec` en `manifest.py` con:
 - Desarrollo local en Windows con PowerShell y VS Code o IDE equivalente.
 - `pyproject.toml` registra el punto de entrada `app.main:app` para el CLI y las herramientas compatibles.
 
+### Dependencias
+
+| Origen | Contenido | Notas |
+|--------|-----------|-------|
+| `pyproject.toml` | Fuente única. `fastapi[standard]==0.161.1`, `httpx>=0.28,<1.0`, `pydantic-settings>=2.10,<3.0`, `python-dotenv>=1.0,<2.0` | `requires-python = ">=3.13"` (V8: `pip install -e .` falla en 3.11/3.12) |
+| `requirements.txt` | `-e .[media,dev]` | Sin pines `==`; deriva de `pyproject.toml` |
+| `constraints.txt` | 64 pines generados con `pip freeze` (Windows + Python 3.13) | Incluye `colorama`, omite `uvloop`; no es lock multiplataforma (V7) |
+| Extra `media` | `imageio-ffmpeg>=0.6.0,<1.0`, `python-multipart>=0.0.20,<1.0` | Solo necesario para análisis de video/audio (V9) |
+| Extra `dev` | `pytest>=8.0` | Para ejecutar la suite de pruebas |
+
 ## Inicio rápido — Windows / PowerShell
 
 Desde la raíz del repositorio:
@@ -191,28 +201,32 @@ app/
 ```
 
 tests/
-├── test_llm_integration.py    # Pruebas de integración LLM (6 tests)
-├── test_audio_integration.py  # Pruebas de integración audio (4 tests)
-├── test_video_integration.py  # Pruebas de integración video (4 tests)
-├── test_registry.py           # Pruebas del registry (12 tests)
-├── test_llm_api.py
-├── test_media_api.py
-├── test_media_endpoints.py
-├── test_http_errors.py
-├── test_product_api.py
-├── test_product_create_semantics.py
-├── test_product_service.py
-├── test_llm_service.py
-├── test_llm_provider.py
-├── test_audio_adapter.py
-├── test_media_providers.py
-├── test_media_service.py
-├── test_video_processor_integration.py
-├── test_vision_adapter.py
-├── test_modularity.py
-├── test_product_create_semantics.py
-├── test_llm_connection.py     # Script standalone de prueba real
-└── test_product_api.py
+├── test_app_factory.py                  # 2 tests
+├── test_architecture.py                 # 23 tests (AST, reglas de modularización)
+├── test_audio_adapter.py                # 6 tests
+├── test_audio_integration.py            # 4 tests
+├── test_http_errors.py                  # 9 tests
+├── test_lifespan.py                     # 12 tests (ciclo de vida, cliente HTTP compartido)
+├── test_llm_api.py                      # 6 tests
+├── test_llm_connection.py               # Script standalone de prueba real (0 tests en pytest)
+├── test_llm_integration.py              # 6 tests
+├── test_llm_provider.py                 # 9 tests
+├── test_llm_service.py                  # 3 tests
+├── test_media_api.py                    # 6 tests
+├── test_media_endpoints.py              # 11 tests
+├── test_media_providers.py              # 5 tests
+├── test_media_service.py                # 7 tests
+├── test_packaging.py                    # 5 tests (empaquetado)
+├── test_product_api.py                  # 10 tests
+├── test_product_create_semantics.py     # 3 tests
+├── test_product_service.py              # 5 tests
+├── test_registry.py                     # 18 tests (registry, clasificación de errores)
+├── test_registry_imports.py             # 10 tests (clasificación A/B/C/D, build_provider)
+├── test_video_integration.py            # 4 tests
+├── test_video_processor_integration.py  # 1 test
+└── test_vision_adapter.py               # 7 tests
+
+Total: 172 tests (pytest), 0 fallos, 0 omitidos. No existe `tests/test_modularity.py`.
 ```
 
 ### Configurar el proveedor LLM
@@ -315,9 +329,28 @@ Errores LLM conocidos: `422` para solicitud inválida, `502` para error o respue
 
 ## Pruebas
 
+Desde la raíz del repositorio, con el entorno virtual activado:
+
+```powershell
+python -m pytest -q
+```
+
+Resultado real medido en esta sesión (Python 3.13.9, `fix/fase1-cierre` HEAD `16dab3b`): **172 passed, 0 failed, 0 skipped** en 27.99s.
+
+Recuento por comando de recolección:
+
+```powershell
+python -m pytest --collect-only -q
+```
+→ `172 tests collected`
+
+También es compatible con `unittest`:
+
 ```powershell
 python -m unittest discover -s tests -v
 ```
+
+**Nota importante (V4):** la suite no es hermética. Sin `LLM_API_KEY`, `LLM_BASE_URL` y `LLM_MODEL` configurados, `test_lifespan.py::LifespanTests::test_llm_ask_with_mock_transport_returns_200` falla (recibe `503`, espera `200`) porque `get_settings()` lee el entorno. Pendiente: hacer la suite hermética para que pase sin credenciales.
 
 Secciones cubiertas:
 
@@ -325,11 +358,15 @@ Secciones cubiertas:
 - Servicio LLM con adaptador simulado (unidad).
 - Adaptador LLM y contratos HTTP (integración).
 - Router `/api/v1/products` y endpoints (integración).
-- **Modularidad**: `tests/test_modularity.py` (solo módulos habilitados se montan, módulo desconocido falla rápido, `/api/v1/modules` lista activos).
+- **Modularidad**: solo módulos habilitados se montan, módulo desconocido falla rápido, `/api/v1/modules` lista activos (ver `tests/test_registry.py`, `tests/test_architecture.py`).
 - **Integración LLM**: `tests/test_llm_integration.py` (6 tests con servicio simulado).
 - **Integración Audio**: `tests/test_audio_integration.py` (4 tests con servicio simulado).
 - **Integración Video**: `tests/test_video_integration.py` (4 tests con servicio simulado).
-- **Registry**: `tests/test_registry.py` (12 tests incluyendo D-1 y D-2).
+- **Registry**: `tests/test_registry.py` (18 tests incluyendo D-1 y D-2).
+- **Arquitectura**: `tests/test_architecture.py` (23 tests AST).
+- **Lifespan**: `tests/test_lifespan.py` (12 tests).
+- **Clasificación de imports**: `tests/test_registry_imports.py` (10 tests).
+- **Empaquetado**: `tests/test_packaging.py` (5 tests).
 
 Las pruebas del adaptador usan `httpx.MockTransport`; no realizan llamadas a Internet. Para comprobar que una clave real y el modelo elegido funcionan, realiza después una prueba manual y controlada desde Swagger, teniendo en cuenta el consumo que facture el proveedor.
 
@@ -357,9 +394,13 @@ Las pruebas del adaptador usan `httpx.MockTransport`; no realizan llamadas a Int
 - [Manejo de errores HTTP y capas](docs/http-errors.md)
 - [Modularización con APIRouter](docs/api-routing.md)
 - [Creación repetida e idempotencia](docs/create-and-idempotency-semantics.md)
+- [Manifiesto de archivos de sección 6](docs/section-06-manifest.md)
 - [Manifiesto de archivos de sección 7](docs/section-07-manifest.md)
+- [Manifiesto de archivos de sección 8](docs/section-08-manifest.md)
+- [Decisión de arquitectura (ADR-001)](docs/decisions/ADR-001-architecture.md)
 - [Integración LLM](docs/llm-integration.md)
 - [Audio y video (multimodal)](docs/multimodal-media.md)
+- [Cierre de la Fase 1](docs/phase1-closure.md)
 - [Reglas para agentes de programación](AGENTS.md)
 
 ## Roadmap por secciones
@@ -374,11 +415,13 @@ Las pruebas del adaptador usan `httpx.MockTransport`; no realizan llamadas a Int
 | 6        | Manejo de errores HTTP y separación de capas      | Completada                       |
 | 7        | Modularización con `APIRouter`                    | Completada                       |
 | 8        | Integración con proveedor LLM mediante API key    | Completada                       |
-| 9 (Fase 1) | Arquitectura modular con registry y módulos opcionales | **Completada**               |
+| 9 (Fase 1) | Arquitectura modular con registry y módulos opcionales | Implementada; cierre en verificación            |
 |          | - Registry con carga dinámica e importlib          | ✅ Completado                    |
 |          | - ModuleSpec con lifespan y requires               | ✅ Completado                    |
 |          | - httpx.AsyncClient en lifespan (llm/media)        | ✅ Completado                    |
 |          | - Tests de integración (LLM, audio, video)         | ✅ Completado                    |
+|          | - Pendiente: suite hermética sin `LLM_*`           | ⏳ Cierre en verificación        |
+|          | - Pendiente: CI (lint, typecheck, tests, build)    | ⏳ Fase 2                        |
 | 10 (Fase 2) | Auth con API keys + rate limiting + errores unificados + CI | Pendiente           |
 
 ## Flujo de trabajo

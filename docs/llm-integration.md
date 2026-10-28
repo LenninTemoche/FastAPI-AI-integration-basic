@@ -4,7 +4,7 @@
 
 Exponer una operación de **generación de texto** reutilizable por HTTP/JSON sin acoplar los endpoints ni el caso de uso a un proveedor comercial específico. La ruta recibe un contrato propio y devuelve una respuesta normalizada; el adaptador traduce ese contrato al protocolo HTTP del proveedor.
 
-> **Nota:** Esta sección cubre solo generación de texto (`POST /api/v1/llm/ask`). Para **transcripción de audio (Whisper)** y **análisis de video** (visión por fotogramas), consulta [`docs/multimodal-media.md`](docs/multimodal-media.md). Esas capacidades usan rutas separadas bajo `/api/v1/media/` y modelos independientes del modelo de chat.
+> **Nota:** Esta sección cubre solo generación de texto (`POST /api/v1/llm/ask`). Para **transcripción de audio (Whisper)** y **análisis de video** (visión por fotogramas), consulta [`multimodal-media.md`](multimodal-media.md). Esas capacidades usan rutas separadas bajo `/api/v1/media/` y modelos independientes del modelo de chat.
 
 ## Decisión de arquitectura
 
@@ -133,4 +133,4 @@ La autenticación de la API para sus propios consumidores es distinta de `LLM_AP
 
 ## Documentación relacionada
 
-- [`docs/multimodal-media.md`](docs/multimodal-media.md): transcripción de audio (Whisper) y análisis de video (visión por fotogramas), con modelos y endpoints separados de la generación de texto.
+- [`multimodal-media.md`](multimodal-media.md): transcripción de audio (Whisper) y análisis de video (visión por fotogramas), con modelos y endpoints separados de la generación de texto.
