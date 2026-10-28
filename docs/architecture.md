@@ -406,3 +406,12 @@ flowchart TD
     style CORE fill:#4a5568,stroke:#2d3748,color:#f1f5f9
     style HTTP_CLIENT fill:#4a5568,stroke:#2d3748,color:#f1f5f9
 ```
+
+## Decisiones sobre ModuleSpec
+
+Los campos `tags`, `extras`, `env_vars` y `healthcheck` de `ModuleSpec` están **aplazados**. Un campo se incorpora solo si lo usa el código y lo cubre al menos una prueba:
+
+- `tags`: No se usa actualmente. Los routers ya declaran sus propias etiquetas.
+- `extras`: No se usa. Las dependencias opcionales se declaran en `pyproject.toml` y se verifican en tiempo de instalación, no en tiempo de ejecución.
+- `env_vars`: No se usa. Las variables de entorno se leen directamente desde `Settings` (pydantic-settings).
+- `healthcheck`: No se usa. Los health checks se implementan como endpoints HTTP estándar (`/health`) en lugar de como parte de `ModuleSpec`.

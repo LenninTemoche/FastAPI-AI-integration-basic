@@ -27,6 +27,13 @@ Estas reglas se aplican a los agentes de IDE y asistentes de código que trabaje
 - No agregues una dependencia nueva si la biblioteca estándar o una dependencia existente resuelven adecuadamente la necesidad.
 - No conviertas almacenamiento en memoria en una promesa de persistencia duradera.
 
+### Reglas de modularización (Fase 1)
+
+- Un módulo solo importa a otro si lo declara en `requires` de su `manifest.py` (hoy `media` requiere `llm`).
+- Cada módulo gestiona sus recursos en `ModuleSpec.lifespan` (ciclo de vida propio).
+- El cliente HTTP compartido tiene un único propietario (`llm`) y se accede con `app/core/http.py`.
+- Las pruebas de arquitectura (`tests/test_architecture.py`) no deben pasar en vacío.
+
 ## Seguridad
 
 - Nunca escribas claves, tokens, contraseñas ni credenciales reales en archivos versionados, documentación de ejemplo, pruebas o logs.
