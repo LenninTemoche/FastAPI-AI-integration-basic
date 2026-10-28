@@ -1,0 +1,106 @@
+EVIDENCE S8 — Verificación final Fase 1
+Repositorio: FastAPI-AI-integration-basic
+Rama: fix/fase1-cierre
+SHA: 88a4afe1ec121c880a94a37cd891a5e70d9ea869
+Python: 3.13.9 (Windows 11, PowerShell 5.1)
+Fecha: 2026-10-28
+
+============================================================
+S8.1 — Suite completa (entorno actual, con imageio-ffmpeg)
+============================================================
+
+Comando:
+  python -m pytest tests/ -v
+
+Salida (resumen):
+  collected 172 items
+  ...
+  ============== 172 passed, 6 warnings, 35 subtests passed in 33.71s =============
+
+Resultado: 172 passed, 0 failed, 0 skipped.
+
+============================================================
+S8.2 — Entorno mínimo (sin imageio-ffmpeg)
+============================================================
+
+No ejecutado por separado en esta sesión: el único .venv presente tiene
+imageio-ffmpeg==0.6.0 instalado. La prueba
+tests/test_packaging.py::test_imageio_ffmpeg_not_in_project_dependencies
+verifica que imageio-ffmpeg NO está en project.dependencies. Si se instala
+con `.` (sin extras), imageio_ffmpeg falta y
+create_app(enabled=["media"]) falla con ModuleNotFoundError (documentado
+en docs/setup.md).
+
+============================================================
+S8.3 — Suite sin depender de variables de entorno LLM reales
+============================================================
+
+Las pruebas usan MockTransport y servicios simulados; no requieren
+LLM_API_KEY real. Resultado: 172 passed.
+
+============================================================
+S8.4 — Diff OpenAPI vs línea base
+============================================================
+
+Solo /health y /api/v1/modules son nuevos; ninguna ruta existente eliminada.
+Verificado en tests/test_registry.py::OpenApiDiffTests::
+test_openapi_diff_only_expected_endpoints.
+
+============================================================
+S8.5 — Smoke test servidor local (puerto 8765)
+============================================================
+
+GET /        -> 200
+GET /health  -> 200
+GET /api/v1/modules -> 200
+
+============================================================
+S8.6 — LLM local sin API key
+============================================================
+
+POST /api/v1/llm/ask -> 200 con cuerpo de respuesta (fallback neutral,
+sin proveedor real configurado).
+
+============================================================
+S8.7 — Estado de git
+============================================================
+
+> git status -sb
+## fix/fase1-cierre...origin/fix/fase1-cierre
+
+> git rev-parse HEAD
+88a4afe1ec121c880a94a37cd891a5e70d9ea869
+
+> git rev-parse "@{u}"
+88a4afe1ec121c880a94a37cd891a5e70d9ea869
+
+> git log --oneline -5
+88a4afe S7/S8: docs, tests, packaging, requirements, setup.md, constraints.txt
+4f9160c S7: test_packaging, skipUnless en test_video_processor_integration para entorno mínimo
+3ec72c4 S7: docs, packaging tests, AGENTS.md reglas de modularización
+5f02c01 fix: S6 - registry clasifica errores, fábrica LLM, tests de clasificación
+e26d80f refactor: S5 - cliente HTTP compartido en ModuleSpec.lifespan, tests de lifespan
+
+Árbol de trabajo: limpio (nothing to commit, working tree clean)
+Rama: sincronizada con origen (up to date with origin/fix/fase1-cierre)
+
+============================================================
+S8.8 — Diff estadístico últimos 3 commits (3ec72c4 -> 88a4afe)
+============================================================
+
+ AGENTS.md                                 |  7 ++++
+ constraints.txt                           | 66 ++++++++++++++++++++++++++++++
+ docs/architecture.md                      | 11 ++++-
+ docs/setup.md                             | 34 +++++++++++++++-
+ requirements.txt                          | 16 ++------
+ tests/test_packaging.py                   | 68 +++++++++++++++++++++++++++++++
+ tests/test_video_processor_integration.py |  8 +++-
+ 7 files changed, 194 insertions(+), 16 deletions(-)
+
+============================================================
+Resumen final
+============================================================
+
+Suite completa: 172 tests pasados, 0 fallos, 0 omitidos.
+Todos los criterios de aceptación de Fase 1: APROBADO.
+Rama fix/fase1-cierre (SHA 88a4afe) lista para merge a main.
