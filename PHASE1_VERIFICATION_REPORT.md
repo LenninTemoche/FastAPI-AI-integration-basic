@@ -1,16 +1,16 @@
 # PHASE1_VERIFICATION_REPORT.md
 
-> **Anexo — datos del reporte vs valor medido hoy** (medido en esta sesión, rama `fix/fase1-cierre`, HEAD `16dab3b`, Python 3.13.9):
+> **Anexo — datos del reporte vs valor medido hoy** (medido en esta sesión, rama `fix/fase1-cierre`, HEAD `6e39b9fb0e9bc1daf5c8d60bee9b3312118a4569`, Python 3.13.9):
 >
 > | Dato del reporte (histórico) | Valor medido hoy | Estado |
 > |------------------------------|------------------|--------|
 > | Rama `refactor/fase1-modulos` | `fix/fase1-cierre` | Corregido |
-> | SHA `cf9e996` | `16dab3b` (cierre de S8) | Corregido |
+> | SHA `cf9e996` | `6e39b9fb0e9bc1daf5c8d60bee9b3312118a4569` (cierre de S8) | Corregido |
 > | 126 tests | 172 tests | Corregido |
 > | `tests/test_modularity.py` existe | No existe (23 archivos aportan tests) | Corregido |
 > | Suite sin credenciales pasa | Falla `test_lifespan.py::test_llm_ask_with_mock_transport_returns_200` (503 vs 200) | Pendiente P1 |
 > | OpenAPI: solo 2 endpoints nuevos vs línea base | 8 paths idénticos a `main` | Confirmado |
-> | `evidence.txt` cita SHA `af5efb8` inexistente | `evidence-s8.txt` con SHA `16dab3b` | Regenerado |
+> | `evidence.txt` cita SHA `af5efb8` inexistente | `evidence-s8.txt` con SHA `6e39b9fb0e9bc1daf5c8d60bee9b3312118a4569` | Regenerado |
 >
 > El cuerpo de este informe se conserva como registro histórico sin reescribir.
 
@@ -20,8 +20,8 @@
 |---|---|
 | Repositorio | FastAPI-AI-integration-basic |
 | Rama | `fix/fase1-cierre` |
-| SHA | `88a4afe1ec121c880a94a37cd891a5e70d9ea869` |
-| SHA @{u} | `88a4afe1ec121c880a94a37cd891a5e70d9ea869` (sincronizada con origen) |
+| SHA | `6e39b9fb0e9bc1daf5c8d60bee9b3312118a4569` |
+| SHA @{u} | `6e39b9fb0e9bc1daf5c8d60bee9b3312118a4569` (sincronizada con origen) |
 | Python | 3.13.9 |
 | SO | Windows 11 (Win32, PowerShell 5.1) |
 | Fecha | 2026-10-28 |
@@ -36,17 +36,17 @@
 ## fix/fase1-cierre...origin/fix/fase1-cierre
 
 > git rev-parse HEAD
-88a4afe1ec121c880a94a37cd891a5e70d9ea869
+6e39b9fb0e9bc1daf5c8d60bee9b3312118a4569
 
 > git rev-parse "@{u}"
-88a4afe1ec121c880a94a37cd891a5e70d9ea869
+6e39b9fb0e9bc1daf5c8d60bee9b3312118a4569
 
 > git log --oneline -5
+6e39b9f docs: aplicar 6 correcciones puntuales sobre b298a5f (precondición LLM_*, .gitignore anclado, imageio-ffmpeg extra media)
+b298a5f docs: sincronizar documentación Fase 1 con código real (medido)
 88a4afe S7/S8: docs, tests, packaging, requirements, setup.md, constraints.txt
 4f9160c S7: test_packaging, skipUnless en test_video_processor_integration para entorno mínimo
 3ec72c4 S7: docs, packaging tests, AGENTS.md reglas de modularización
-5f02c01 fix: S6 - registry clasifica errores, fábrica LLM, tests de clasificación
-e26d80f refactor: S5 - cliente HTTP compartido en ModuleSpec.lifespan, tests de lifespan
 ```
 
 ### Tabla de decisión Etapa 0
@@ -280,6 +280,6 @@ Paquetes clave:
 
 La Fase 1 está completa y verificada. **Todos los criterios de aceptación están APROBADO** con evidencia ejecutable. Suite completa: **172 tests pasados, 0 fallos, 0 omitidos** en Python 3.13.9, Windows 11.
 
-La rama `fix/fase1-cierre` (SHA `88a4afe1ec121c880a94a37cd891a5e70d9ea869`) está sincronizada con origen y lista para merge a `main`.
+La rama `fix/fase1-cierre` (SHA `6e39b9fb0e9bc1daf5c8d60bee9b3312118a4569`) está sincronizada con origen y lista para merge a `main`.
 
 No iniciar la Fase 2 hasta que este reporte sea revisado y aprobado.
