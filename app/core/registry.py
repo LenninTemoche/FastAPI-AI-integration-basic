@@ -40,6 +40,13 @@ def _load_spec(name: str) -> ModuleSpec:
             f"El módulo '{name}' necesita una dependencia no instalada: {exc.name}. "
             f"Instala las dependencias del proyecto (p. ej. pip install '.[media]')"
         ) from exc
+    except ImportError as exc:
+        # 4. Si es otro ImportError (p. ej. “No existe”), también es un error interno
+        # y no debe pasar como “dependencia no instalada”.
+        raise ModuleLoadError(
+            f"Error interno del módulo '{name}': {exc}"
+        ) from exc
+    
     if spec.name != name:
         raise ModuleLoadError(f"spec.name '{spec.name}' no coincide con la carpeta '{name}'")
     return spec
