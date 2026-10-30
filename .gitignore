@@ -38,3 +38,12 @@ dist/
 Thumbs.db
 # Scripts sueltos en la raíz; NO afecta a tests/test_*.py
 /test_*.py
+
+# Evidence
+# Generated verification evidence
+evidence*.txt
+
+# Any virtual environment variant
+.venv*/
+.venv-x*/
+.venv*
